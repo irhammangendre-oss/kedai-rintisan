@@ -1,0 +1,1606 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kedai Rintisan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Buku kas warung: kertas ledger kehijauan, tinta biru karbon, angka monospace. Struk harian jadi satu-satunya elemen yang "bersuara". */
+:root{
+  --paper:#e9ede3; --card:#f8faf3; --ink:#16242a; --muted:#5a6968; --line:#cbd4c4; --accent:#1c4aa0; --accent-ink:#ffffff;
+  --good:#1f7446; --warn:#9a5f06; --bad:#b3362a; --tint:#dfe6d6;
+  --f-display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#10181a; --card:#182226; --ink:#e4eae0; --muted:#92a29f; --line:#2b3a3c; --accent:#8db0ff; --accent-ink:#0c1524;
+  --good:#5bc48c; --warn:#e2a94b; --bad:#f08572; --tint:#1f2c2f; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --paper:#10181a; --card:#182226; --ink:#e4eae0; --muted:#92a29f; --line:#2b3a3c; --accent:#8db0ff; --accent-ink:#0c1524;
+  --good:#5bc48c; --warn:#e2a94b; --bad:#f08572; --tint:#1f2c2f; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--f-display);font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance}
+h2{font-size:22px} h3{font-size:16px}
+p{margin:0}
+.num,td.n,th.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.small{font-size:13px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:6px;padding:6px 12px}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
+button.ghost{background:transparent}
+button.mini{padding:2px 9px;font-size:13px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:5px 8px}
+input[type=number]{width:104px;font-family:var(--f-mono);text-align:right}
+input[type=range]{padding:0;width:220px;accent-color:var(--accent)}
+
+#app{height:100%;display:grid;grid-template-columns:212px 1fr;grid-template-rows:auto 1fr}
+.top{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:10px 20px;border-bottom:2px solid var(--ink);background:var(--card)}
+.brand{font-family:var(--f-display);font-weight:800;font-size:24px;line-height:1;letter-spacing:-.02em}
+.brand small{display:block;font:500 12px var(--f-body);color:var(--muted);letter-spacing:0;margin-top:4px}
+.kpis{display:flex;flex-wrap:wrap;gap:6px 22px;flex:1}
+.kpi{display:flex;flex-direction:column;line-height:1.2}
+.kpi b{font:600 17px var(--f-mono);font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted)}
+.go{display:flex;gap:8px;align-items:center}
+.go .primary{padding:10px 18px;font-size:16px}
+.side{border-right:1px solid var(--line);padding:14px 10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
+.side button{border:0;background:transparent;text-align:left;padding:8px 12px;border-radius:6px;border-left:3px solid transparent}
+.side button[aria-current=page]{background:var(--tint);border-left-color:var(--accent);font-weight:600}
+.side .foot{margin-top:auto;font-size:12px;color:var(--muted);padding:10px 12px}
+main{overflow:auto;padding:20px 24px 60px}
+.wrap{max-width:1180px;display:flex;flex-direction:column;gap:18px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.cols{display:grid;gap:18px;grid-template-columns:minmax(0,1fr) 330px;align-items:start}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card>header{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center}
+.spread{justify-content:space-between}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);background:var(--tint);white-space:nowrap}
+.chip.good{border-color:var(--good)} .chip.warn{border-color:var(--warn)} .chip.bad{border-color:var(--bad)}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-weight:600;text-align:left;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--ink);padding:6px 8px;white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right;white-space:nowrap}
+tr.total td{border-top:1px solid var(--ink);border-bottom:0;font-weight:600}
+.bar{height:8px;background:var(--tint);border-radius:4px;overflow:hidden;min-width:80px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.bar.good i{background:var(--good)} .bar.warn i{background:var(--warn)} .bar.bad i{background:var(--bad)}
+.alert{border-left:4px solid var(--warn);background:var(--tint);padding:8px 12px;border-radius:0 6px 6px 0;font-size:14px}
+.alert.bad{border-left-color:var(--bad)} .alert.good{border-left-color:var(--good)} .alert.info{border-left-color:var(--accent)}
+.stepper{display:inline-flex;gap:4px;align-items:center}
+.kv{display:grid;grid-template-columns:1fr auto;gap:3px 14px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+dl{margin:0}
+
+/* Struk harian */
+.struk{background:#fffef8;color:#1b1b1b;font:13px/1.55 var(--f-mono);padding:18px 16px 22px;border:1px solid var(--line);position:relative;
+  box-shadow:0 2px 0 rgba(0,0,0,.06);--edge:var(--paper)}
+.struk::after{content:"";position:absolute;left:0;right:0;bottom:-7px;height:8px;
+  background:linear-gradient(135deg,#fffef8 5px,transparent 0) 0 0/10px 8px repeat-x,linear-gradient(225deg,#fffef8 5px,transparent 0) 0 0/10px 8px repeat-x}
+.struk h3{font:700 15px var(--f-mono);text-align:center;letter-spacing:.08em;text-transform:uppercase}
+.struk .c{text-align:center;color:#555}
+.struk hr{border:0;border-top:1px dashed #999;margin:8px 0}
+.struk .l{display:flex;justify-content:space-between;gap:10px}
+.struk .l b{font-weight:700}
+.struk .tot{font-size:16px;font-weight:700}
+.struk .neg{color:#a5281d} .struk .pos{color:#17663c}
+.struk .note{color:#444;margin-top:4px}
+
+.log{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px}
+.log li{display:grid;grid-template-columns:62px 1fr;gap:8px}
+.log time{font:12px var(--f-mono);color:var(--muted);padding-top:2px}
+.log .good{color:var(--good)} .log .bad{color:var(--bad)} .log .warn{color:var(--warn)}
+.goals{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.goals li{display:flex;gap:10px;align-items:baseline}
+.goals .box{width:15px;height:15px;border:2px solid var(--ink);border-radius:3px;flex:none;transform:translateY(2px)}
+.goals .done .box{background:var(--good);border-color:var(--good)}
+.goals .done{color:var(--muted)}
+
+#modal{position:fixed;inset:0;background:rgba(10,18,20,.55);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+#modal.on{display:flex}
+.dialog{background:var(--card);border:2px solid var(--ink);border-radius:10px;max-width:560px;width:100%;padding:22px;display:flex;flex-direction:column;gap:14px;max-height:92%;overflow:auto}
+.dialog .eyebrow{font:600 12px var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+.choices{display:flex;flex-direction:column;gap:8px}
+.choices button{display:flex;justify-content:space-between;gap:12px;text-align:left;padding:10px 14px}
+.choices button span{color:var(--muted);font-size:13px;text-align:right}
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:9px 16px;border-radius:8px;font-size:14px;max-width:90%;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+#toast.on{opacity:1}
+.start{max-width:760px;margin:6vh auto 0;display:flex;flex-direction:column;gap:18px;padding:0 20px}
+.start h1{font-size:54px;line-height:.95;letter-spacing:-.03em}
+.start .lede{font-size:17px;max-width:60ch}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modes label{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--card);cursor:pointer;display:flex;flex-direction:column;gap:4px}
+.modes input{position:absolute;opacity:0}
+.modes label:has(input:checked){border:2px solid var(--accent);padding:11px 13px}
+.modes label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+svg text{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
+@media (max-width:900px){
+  #app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}
+  .side{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);padding:6px 10px}
+  .side button{white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
+  .side button[aria-current=page]{border-bottom-color:var(--accent)}
+  .side .foot{display:none}
+  .cols{grid-template-columns:1fr}
+  main{padding:16px}
+  .start h1{font-size:40px} .modes{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+/* Kedai Rintisan: mesin simulasi. Tanpa DOM, bisa dijalankan di Node untuk uji keseimbangan. */
+const Engine = (() => {
+  'use strict';
+  const VERSION = 1;
+  const JT = 1e6;
+
+  /* ---------- Data ---------- */
+  const ING = {
+    kopi: { n: 'Biji kopi', u: 'kg', p: 120000, shelf: 60, step: 0.5 },
+    susu: { n: 'Susu segar', u: 'liter', p: 18000, shelf: 5, step: 1 },
+    gula: { n: 'Gula aren', u: 'kg', p: 30000, shelf: 90, step: 0.5 },
+    roti: { n: 'Roti tawar', u: 'porsi', p: 4000, shelf: 3, step: 5 },
+    cokelat: { n: 'Cokelat bubuk', u: 'kg', p: 90000, shelf: 120, step: 0.5 },
+    cup: { n: 'Gelas & kemasan', u: 'pcs', p: 600, shelf: 9999, step: 50 },
+  };
+  const GRADES = [
+    { n: 'Robusta pasar', m: 1, q: 0 },
+    { n: 'Arabika lokal', m: 1.35, q: 7 },
+    { n: 'Specialty single origin', m: 1.9, q: 14 },
+  ];
+  const MENU = {
+    tubruk: { n: 'Kopi Tubruk', r: { kopi: 0.012, gula: 0.005, cup: 1 }, ref: 8000, pop: 0.9, t: 'hot' },
+    kopsus: { n: 'Kopi Susu', r: { kopi: 0.015, susu: 0.12, gula: 0.01, cup: 1 }, ref: 15000, pop: 1.1, t: 'hot' },
+    aren: { n: 'Es Kopi Aren', r: { kopi: 0.015, susu: 0.1, gula: 0.03, cup: 1 }, ref: 18000, pop: 1.0, t: 'cold' },
+    roti: { n: 'Roti Bakar', r: { roti: 1, gula: 0.01, cokelat: 0.005 }, ref: 12000, pop: 0.6, t: 'food' },
+    moka: { n: 'Moka Cokelat', r: { kopi: 0.015, susu: 0.12, cokelat: 0.02, cup: 1 }, ref: 22000, pop: 0.5, t: 'hot', need: 'r_moka' },
+    coldbrew: { n: 'Seduh Dingin', r: { kopi: 0.025, cup: 1 }, ref: 20000, pop: 0.45, t: 'cold', need: 'r_cold' },
+    literan: { n: 'Kopi Susu Literan', r: { kopi: 0.06, susu: 0.5, gula: 0.08, cup: 3 }, ref: 65000, pop: 0.16, t: 'cold', need: 'r_liter' },
+  };
+  const LOCS = {
+    gang: { n: 'Gang Kampung', rent: 1.5 * JT, traffic: 115, wtp: 0.85, setup: 8 * JT, equip: 0,
+      dow: [1, 1, 1, 1, 1.05, 1.15, 1.1], d: 'Sewa murah, pelanggan tetangga, harga harus ramah.' },
+    pasar: { n: 'Dekat Pasar', rent: 3 * JT, traffic: 140, wtp: 0.88, setup: 18 * JT, equip: 0,
+      dow: [1, 1, 1, 1, 1.05, 1.2, 1.25], d: 'Ramai tiap hari, paling ramai akhir pekan. Rawan banjir.' },
+    kampus: { n: 'Depan Kampus', rent: 4 * JT, traffic: 170, wtp: 0.92, setup: 25 * JT, equip: 0,
+      dow: [1.1, 1.1, 1.1, 1.1, 1.05, 0.6, 0.45], d: 'Mahasiswa banyak, tapi sepi saat libur semester.' },
+    kantor: { n: 'Kawasan Perkantoran', rent: 14 * JT, traffic: 220, wtp: 1.2, setup: 90 * JT, equip: 1, share: 0.05,
+      dow: [1.15, 1.15, 1.15, 1.15, 1.1, 0.4, 0.3], d: 'Pegawai mau bayar lebih. Akhir pekan nyaris kosong. Pengelola gedung memungut 5% omzet.' },
+    wisata: { n: 'Kota Wisata', rent: 17 * JT, traffic: 270, wtp: 1.25, setup: 140 * JT, equip: 1, share: 0.06,
+      dow: [0.7, 0.7, 0.7, 0.75, 1.1, 1.7, 1.7], d: 'Meledak saat akhir pekan dan musim liburan. Retribusi kawasan 6% omzet.' },
+    mall: { n: 'Kios Mal', rent: 32 * JT, traffic: 330, wtp: 1.3, setup: 230 * JT, equip: 1, share: 0.12,
+      dow: [0.8, 0.8, 0.8, 0.85, 1.1, 1.5, 1.5], d: 'Sewa paling mahal, pengunjung paling banyak, tidak takut hujan. Mal memungut bagi hasil 12% omzet.' },
+  };
+  const EQUIP = [
+    { n: 'Kompor & saringan', cap: 130, cost: 0 },
+    { n: 'Mesin espresso bekas', cap: 280, cost: 12 * JT },
+    { n: 'Mesin espresso 2 grup', cap: 520, cost: 35 * JT },
+    { n: 'Bar lengkap', cap: 900, cost: 80 * JT },
+  ];
+  const DEKOR = [
+    { n: 'Seadanya', cost: 0 },
+    { n: 'Rapi & nyaman', cost: 5 * JT },
+    { n: 'Instagramable', cost: 20 * JT },
+  ];
+  const TRAIN = [0, 3 * JT, 8 * JT, 20 * JT];
+  const RES = {
+    r_supplier: { n: 'Kontrak pemasok langganan', cost: 1.5 * JT, d: 'Bahan dikirim otomatis tiap pagi sesuai target stok (harga +3%).' },
+    r_ojol: { n: 'Kemitraan ojek online', cost: 2 * JT, d: 'Pesanan bertambah sekitar 25%, komisi aplikasi 20% dari pesanan daring.' },
+    r_moka: { n: 'Resep Moka Cokelat', cost: 3 * JT, d: 'Menu baru bermargin tinggi.' },
+    r_cold: { n: 'Resep Seduh Dingin', cost: 4 * JT, d: 'Menu dingin tanpa susu, laris saat terik.' },
+    r_liter: { n: 'Kopi Susu Literan', cost: 5 * JT, d: 'Botol 1 liter untuk pesanan daring.', need: 'r_ojol' },
+    r_kulkas: { n: 'Kulkas besar', cost: 6 * JT, d: 'Susu tahan 8 hari, roti tahan 4 hari.' },
+    r_pos: { n: 'Kasir digital', cost: 5 * JT, d: 'Menutup selisih kas 2,5% di cabang yang tidak Anda jaga sendiri.' },
+    r_cert: { n: 'Sertifikat halal & laik higiene', cost: 4 * JT, d: 'Kualitas +3 dan aman saat sidak dinas.' },
+    r_loyal: { n: 'Program kartu pelanggan', cost: 8 * JT, d: 'Lebih banyak pengunjung yang jadi pembeli.' },
+    r_roastery: { n: 'Dapur sangrai sendiri', cost: 60 * JT, d: 'Biaya biji kopi turun 25%, kualitas +5.', outlets: 3 },
+    r_franchise: { n: 'SOP & legal waralaba', cost: 40 * JT, d: 'Calon mitra waralaba mulai berdatangan.', outlets: 3, rep: 70 },
+  };
+  const CAMP = {
+    brosur: { n: 'Brosur & spanduk', cost: 0.4 * JT, buzz: 0.08 },
+    sosmed: { n: 'Iklan media sosial', cost: 1.5 * JT, buzz: 0.2 },
+    endorse: { n: 'Endorse selebgram', cost: 6 * JT, buzz: 0.5, rep: 40 },
+    baliho: { n: 'Baliho & radio kota', cost: 15 * JT, buzz: 0.9, outlets: 3 },
+  };
+  const LOAN = {
+    kur: { n: 'KUR Mikro', rate: 0.06, max: 100 * JT, minDay: 30, d: 'Bunga 6% setahun, plafon total Rp 100 juta. Syarat: usaha berjalan 30 hari.' },
+    bank: { n: 'Kredit usaha bank', rate: 0.12, max: 2000 * JT, minDay: 90, d: 'Bunga 12% setahun, plafon 4x omzet 30 hari terakhir. Syarat: usaha berjalan 90 hari.' },
+  };
+  const GOALS = [
+    { id: 'g_untung', n: 'Tutup bulan dengan laba' },
+    { id: 'g_rep50', n: 'Reputasi 50' },
+    { id: 'g_cabang', n: 'Buka cabang kedua' },
+    { id: 'g_omzet50', n: 'Omzet Rp 50 juta dalam sebulan' },
+    { id: 'g_tiga', n: 'Tiga outlet berjalan' },
+    { id: 'g_rep75', n: 'Reputasi 75' },
+    { id: 'g_mitra', n: 'Mitra waralaba pertama' },
+    { id: 'g_lima', n: 'Lima outlet milik sendiri' },
+    { id: 'g_valuasi', n: 'Valuasi usaha Rp 5 miliar' },
+  ];
+  const WX = { cerah: 'Cerah', mendung: 'Mendung', hujan: 'Hujan', terik: 'Terik' };
+  const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+  const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  const TAX_FREE = 500 * JT, UMKM_MAX = 4800 * JT;
+
+  /* ---------- Util ---------- */
+  function rnd(s) {
+    s.seed = (s.seed + 0x6D2B79F5) | 0;
+    let t = s.seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const gauss = s => (rnd(s) + rnd(s) + rnd(s) + rnd(s) - 2) / 0.577;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const pick = (s, arr) => arr[Math.floor(rnd(s) * arr.length)];
+  const R = Math.round;
+
+  function cal(day) {
+    const dom = (day - 1) % 30 + 1, month = (Math.floor((day - 1) / 30) + 4) % 12 + 1; /* hari 1 = 1 Mei */
+    return { dom, month, year: Math.floor((day - 1) / 360) + 1, wd: (day - 1) % 7 };
+  }
+  function dateStr(day) {
+    const c = cal(day);
+    return HARI[c.wd] + ', ' + c.dom + ' ' + BULAN[c.month - 1] + ' tahun ke-' + c.year;
+  }
+  function seasonTags(day) {
+    const c = cal(day), tags = [];
+    if ([11, 12, 1, 2, 3].includes(c.month)) tags.push('Musim hujan');
+    if (c.month === 3) tags.push('Ramadan');
+    if (c.month === 4 && c.dom <= 7) tags.push('Libur Lebaran');
+    if (c.month === 7 || (c.month === 8 && c.dom <= 15) || (c.month === 1 && c.dom <= 15)) tags.push('Libur kampus');
+    if (c.month === 12 && c.dom >= 18) tags.push('Libur akhir tahun');
+    return tags;
+  }
+  function seasonF(loc, day) {
+    const t = seasonTags(day);
+    let f = 1;
+    if (t.includes('Ramadan')) f *= loc === 'mall' ? 0.9 : 0.72;
+    if (t.includes('Libur Lebaran')) f *= ({ kampus: 0.25, kantor: 0.25, gang: 1.2, pasar: 0.8, wisata: 1.9, mall: 1.6 })[loc];
+    if (t.includes('Libur kampus') && loc === 'kampus') f *= 0.45;
+    if (t.includes('Libur akhir tahun')) f *= ({ wisata: 1.6, mall: 1.45, kantor: 0.7 })[loc] || 1;
+    return f;
+  }
+  function rollWeather(s, day) {
+    const rainy = [11, 12, 1, 2, 3].includes(cal(day).month);
+    const p = rainy ? [0.2, 0.25, 0.5, 0.05] : [0.5, 0.17, 0.08, 0.25];
+    const keys = ['cerah', 'mendung', 'hujan', 'terik'];
+    let x = rnd(s);
+    for (let i = 0; i < 4; i++) { if (x < p[i]) return keys[i]; x -= p[i]; }
+    return 'cerah';
+  }
+
+  /* ---------- State ---------- */
+  function newMonth() {
+    return { rev: 0, royalty: 0, cogs: 0, waste: 0, wages: 0, rent: 0, mkt: 0, fee: 0, interest: 0, tax: 0, owner: 0, ops: 0, other: 0, capex: 0, cust: 0 };
+  }
+  function monthProfit(m) {
+    return m.rev + m.royalty - m.cogs - m.waste - m.wages - m.rent - m.mkt - m.fee - m.interest - m.tax - m.owner - (m.ops || 0) - m.other;
+  }
+  function newOutlet(s, loc, first) {
+    return { id: s.nextId++, loc, opened: s.day, staff: first ? 0 : 1, equip: LOCS[loc].equip, dekor: 0, morale: 60,
+      comp: 0, closed: 0, broken: 0, rentMult: 1, known: first ? 0.5 : 0.3, adj: 0, own: !!first, last: null };
+  }
+  function newGame(opt) {
+    opt = opt || {};
+    const santai = opt.mode === 'santai';
+    const s = {
+      v: VERSION, seed: (opt.seed || Math.floor(Math.random() * 2 ** 31)) | 0, mode: santai ? 'santai' : 'realistis',
+      brand: (opt.brand || 'Kedai Rintisan').slice(0, 28), day: 1, cash: santai ? 25 * JT : 15 * JT,
+      rep: 32, buzz: 0, wagePct: 100, baseWage: 110000, infl: 1, grade: 0, training: 0, nextId: 1,
+      prices: {}, active: {}, stock: {}, pidx: {}, use: {}, outlets: [], research: {}, loans: [],
+      ojol: false, auto: { on: false, days: 3 }, franchise: [], equity: 0,
+      wx: 'cerah', wxNext: 'cerah', wxFc: 'cerah',
+      hist: [], months: [], cur: newMonth(), ytdRev: 0, taxDue: 0, wagesDue: 0,
+      log: [], last: null, pending: null, eventCd: 4, flags: {}, evLast: {}, goals: {}, negDays: 0, over: null, won: false,
+    };
+    for (const k in MENU) { s.prices[k] = R(MENU[k].ref * 0.82 / 500) * 500; s.active[k] = true; }
+    for (const k in ING) { s.stock[k] = []; s.pidx[k] = 1; s.use[k] = 0; }
+    s.outlets.push(newOutlet(s, 'gang', true));
+    s.wxNext = rollWeather(s, 2); s.wxFc = s.wxNext;
+    const need = forecastNeeds(s);
+    for (const k in ING) {
+      const q = Math.ceil(need[k] * Math.min(3, ING[k].shelf - 1) / ING[k].step) * ING[k].step;
+      s.stock[k].push({ q, age: 0, c: ING[k].p, g: 0 });
+      s.use[k] = need[k];
+    }
+    addLog(s, 'Warung pertama Anda buka di Gang Kampung. Modal ' + rp(s.cash) + '.', 'info');
+    return s;
+  }
+  function rp(x) { return (x < 0 ? '-' : '') + 'Rp ' + Math.abs(R(x)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
+  function addLog(s, t, kind) {
+    s.log.unshift({ d: s.day, t, k: kind || 'info' });
+    if (s.log.length > 80) s.log.length = 80;
+  }
+
+  /* ---------- Turunan ---------- */
+  const stockQty = (s, k) => s.stock[k].reduce((a, b) => a + b.q, 0);
+  const stockValue = s => Object.keys(ING).reduce((a, k) => a + s.stock[k].reduce((x, b) => x + b.q * b.c, 0), 0);
+  function shelf(s, k) {
+    if (k === 'susu' && s.research.r_kulkas) return 8;
+    if (k === 'roti' && s.research.r_kulkas) return 4;
+    return ING[k].shelf;
+  }
+  function beanQ(s) {
+    const b = s.stock.kopi, tot = stockQty(s, 'kopi');
+    return tot > 0 ? b.reduce((a, x) => a + x.q * (x.g || 0), 0) / tot : GRADES[s.grade].q;
+  }
+  function unitPrice(s, k) {
+    let p = ING[k].p * s.infl * s.pidx[k];
+    if (k === 'kopi') p *= GRADES[s.grade].m * (s.research.r_roastery ? 0.75 : 1);
+    return p;
+  }
+  function quoteBuy(s, k, q, auto) {
+    let cost = unitPrice(s, k) * q;
+    let disc = cost >= 10 * JT ? 0.08 : cost >= 2 * JT ? 0.05 : 0;
+    if (auto) disc -= 0.03;
+    return { cost: R(cost * (1 - disc)), disc };
+  }
+  function itemCost(s, k) {
+    let c = 0;
+    for (const i in MENU[k].r) c += MENU[k].r[i] * unitPrice(s, i);
+    return c;
+  }
+  const unlocked = (s, k) => !MENU[k].need || !!s.research[MENU[k].need];
+  const wage = s => s.baseWage * s.wagePct / 100;
+  function dailyWages(s) {
+    let n = 0;
+    for (const o of s.outlets) n += o.staff + (o.own ? 0 : 1.5);
+    return n * wage(s);
+  }
+  function quality(s, o) {
+    return clamp(34 + beanQ(s) + o.equip * 5 + s.training * 4 + o.dekor * 3 + (o.morale - 50) * 0.12 +
+      (s.research.r_roastery ? 4 : 0) + (s.research.r_cert ? 3 : 0), 0, 100);
+  }
+  function capacity(s, o) {
+    const staffCap = (o.own ? 70 : 0) + o.staff * 58 * (1 + 0.08 * s.training) * (0.75 + 0.5 * o.morale / 100);
+    let cap = Math.min(staffCap, EQUIP[o.equip].cap);
+    if (o.broken > 0) cap *= 0.6;
+    return cap;
+  }
+  function opsCost(s) { return s.outlets.reduce((a, o) => a + (o.closed > 0 ? 0.4 : 1) * (30000 + o.equip * 90000) * s.infl, 0) + hqCost(s) / 30; }
+  /* Mulai outlet ketiga butuh admin, akunting dan penyelia. */
+  function hqCost(s) { return Math.max(0, s.outlets.length - 2) * 10 * JT * s.infl; }
+  function rent(s, o) { return R(LOCS[o.loc].rent * s.infl * o.rentMult); }
+
+  /* Harga yang dianggap wajar pelanggan = ref x wtp. */
+  function wtpOf(s, o) { return LOCS[o.loc].wtp * s.infl * (1 + (quality(s, o) - 40) / 200); }
+  /* Permintaan satu outlet. noise=1 untuk perkiraan. */
+  function demand(s, o, noise) {
+    const L = LOCS[o.loc], c = cal(s.day);
+    if (o.closed > 0) return { vis: 0, units: {}, total: 0, ratio: 1 };
+    let wf = 1;
+    if (s.wx === 'hujan') wf = o.loc === 'mall' ? 1.05 : 0.72;
+    else if (s.wx === 'mendung') wf = 0.96;
+    let vis = L.traffic * L.dow[c.wd] * wf * seasonF(o.loc, s.day) * (0.55 + 0.45 * o.known) * (1 + 0.6 * s.buzz) *
+      (1 - 0.12 * o.comp) * Math.min(1.2, 1 + 0.02 * s.franchise.length) * [1, 1.04, 1.08][o.dekor] * noise;
+    if (s.ojol) vis *= 1.25;
+    const conv = 0.2 + 0.42 * s.rep / 100 + (s.research.r_loyal ? 0.04 : 0);
+    const wtp = wtpOf(s, o);
+    let sumW = 0, sumR = 0, sumP = 0;
+    const w = {};
+    for (const k in MENU) {
+      if (!s.active[k] || !unlocked(s, k)) continue;
+      const m = MENU[k];
+      if (k === 'literan' && !s.ojol) continue;
+      let pop = m.pop;
+      if (s.wx === 'terik') pop *= m.t === 'cold' ? 1.3 : m.t === 'hot' ? 0.82 : 1;
+      if (s.wx === 'hujan') pop *= m.t === 'hot' ? 1.25 : m.t === 'cold' ? 0.75 : 1.1;
+      const ratio = s.prices[k] * (1 + o.adj / 100) / (m.ref * wtp);
+      let pf = ratio <= 1 ? Math.min(1.5, Math.pow(ratio, -1.6)) : Math.pow(ratio, -2.6);
+      w[k] = pop * pf; sumW += w[k]; sumR += ratio * pop; sumP += pop;
+    }
+    const units = {};
+    if (sumW <= 0) return { vis, units, total: 0, ratio: 1 };
+    const buyers = Math.min(vis * 0.62, vis * conv * Math.pow(sumW / 3.2, 0.65));
+    let total = 0;
+    for (const k in w) { units[k] = buyers * 1.2 * w[k] / sumW; total += units[k]; }
+    return { vis, units, total, buyers, ratio: sumR / sumP };
+  }
+  function forecastNeeds(s) {
+    const need = {};
+    for (const k in ING) need[k] = 0;
+    for (const o of s.outlets) {
+      const d = demand(s, o, 1), sc = d.total > 0 ? Math.min(1, capacity(s, o) / d.total) : 0;
+      for (const k in d.units) for (const i in MENU[k].r) need[i] += d.units[k] * sc * MENU[k].r[i];
+    }
+    return need;
+  }
+  function debt(s) { return s.loans.reduce((a, l) => a + l.bal, 0); }
+  function rev30(s) { return s.hist.slice(-30).reduce((a, h) => a + h.rev, 0); }
+  function loanLimit(s, type) {
+    const L = LOAN[type];
+    if (s.day < L.minDay) return 0;
+    const used = s.loans.filter(l => l.type === type).reduce((a, l) => a + l.bal, 0);
+    const cap = type === 'bank' ? Math.min(L.max, 4 * rev30(s)) : L.max;
+    return Math.max(0, Math.floor((cap - used) / JT) * JT);
+  }
+  function valuation(s) {
+    let assets = s.cash + stockValue(s);
+    for (const o of s.outlets) assets += LOCS[o.loc].setup * 0.4 + EQUIP[o.equip].cost * 0.5 + DEKOR[o.dekor].cost * 0.3;
+    const ms = s.months.slice(-3);
+    const avg = ms.length ? ms.reduce((a, m) => a + monthProfit(m), 0) / ms.length : 0;
+    return Math.max(0, (assets - debt(s) + Math.max(0, avg) * 24) * (1 - s.equity));
+  }
+  function upcoming(s) {
+    const c = cal(s.day), out = [];
+    const inDays = dom => (dom - c.dom + 30) % 30;
+    out.push({ n: 'Gaji mingguan (Sabtu)', amt: s.wagesDue + dailyWages(s) * ((5 - c.wd + 7) % 7 + 1), d: (5 - c.wd + 7) % 7 });
+    out.push({ n: 'Sewa semua outlet', amt: s.outlets.reduce((a, o) => a + rent(s, o), 0), d: inDays(1) || 30 });
+    const lp = s.loans.reduce((a, l) => a + l.pay, 0);
+    if (lp) out.push({ n: 'Cicilan pinjaman', amt: lp, d: inDays(5) });
+    if (s.taxDue > 0) out.push({ n: s.bigTax ? 'Pajak penghasilan badan' : 'PPh final UMKM', amt: s.taxDue, d: inDays(15) });
+    out.push({ n: 'Biaya hidup pemilik', amt: 3 * JT * s.infl, d: inDays(25) });
+    if ((c.month === 3 && c.dom <= 20) || c.month === 2) out.push({ n: 'THR karyawan', amt: dailyWages(s) * 30, d: (3 - c.month) * 30 + 20 - c.dom });
+    return out.filter(b => b.amt > 0).sort((a, b) => a.d - b.d);
+  }
+
+  /* ---------- Aksi pemain ---------- */
+  const fail = msg => ({ ok: false, msg });
+  const ok = msg => ({ ok: true, msg });
+  function spend(s, amt, cat) { s.cash -= amt; s.cur[cat] += amt; }
+  function buy(s, k, q, auto) {
+    q = Math.max(0, q);
+    if (!(q > 0)) return fail('Jumlah belum diisi.');
+    if (k === 'susu' && s.flags.noSusu > 0) return fail('Pemasok susu sedang tidak bisa mengirim.');
+    const { cost } = quoteBuy(s, k, q, auto);
+    if (cost > s.cash) return fail('Kas tidak cukup. Butuh ' + rp(cost) + '.');
+    s.cash -= cost;
+    s.stock[k].push({ q, age: 0, c: cost / q, g: k === 'kopi' ? GRADES[s.grade].q : 0 });
+    return ok('Beli ' + q + ' ' + ING[k].u + ' ' + ING[k].n.toLowerCase() + ' seharga ' + rp(cost) + '.');
+  }
+  function setPrice(s, k, p) { s.prices[k] = clamp(R(p / 500) * 500, 1000, 500000); return ok(); }
+  function hire(s, id) {
+    const o = s.outlets.find(x => x.id === id), cost = R(0.5 * JT * s.infl);
+    if (s.cash < cost) return fail('Biaya rekrut ' + rp(cost) + ', kas tidak cukup.');
+    spend(s, cost, 'other'); o.staff++;
+    return ok('Satu barista baru bergabung di ' + LOCS[o.loc].n + '.');
+  }
+  function fire(s, id) {
+    const o = s.outlets.find(x => x.id === id), cost = R(1 * JT * s.infl);
+    if (o.staff <= (o.own ? 0 : 1)) return fail('Outlet ini butuh minimal satu barista.');
+    if (s.cash < cost) return fail('Pesangon ' + rp(cost) + ', kas tidak cukup.');
+    spend(s, cost, 'other'); o.staff--; o.morale = Math.max(5, o.morale - 6);
+    return ok('Satu barista diberhentikan dengan pesangon ' + rp(cost) + '.');
+  }
+  function upgradeEquip(s, id) {
+    const o = s.outlets.find(x => x.id === id);
+    if (o.equip >= 3) return fail('Peralatan sudah paling lengkap.');
+    const cost = R(EQUIP[o.equip + 1].cost * s.infl);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + '.');
+    spend(s, cost, 'capex'); o.equip++;
+    return ok(LOCS[o.loc].n + ' kini memakai ' + EQUIP[o.equip].n.toLowerCase() + '.');
+  }
+  function upgradeDekor(s, id) {
+    const o = s.outlets.find(x => x.id === id);
+    if (o.dekor >= 2) return fail('Dekor sudah maksimal.');
+    const cost = R(DEKOR[o.dekor + 1].cost * s.infl);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + '.');
+    spend(s, cost, 'capex'); o.dekor++;
+    return ok('Dekor ' + LOCS[o.loc].n + ' ditingkatkan.');
+  }
+  function setupCost(s, loc) { return R(LOCS[loc].setup * s.infl * (s.flags.deal === loc ? 0.7 : 1)); }
+  function openOutlet(s, loc) {
+    if (s.outlets.some(o => o.loc === loc)) return fail('Sudah ada outlet di lokasi itu.');
+    const cost = setupCost(s, loc);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + ' untuk buka di sini.');
+    spend(s, cost, 'capex');
+    if (s.flags.deal === loc) delete s.flags.deal;
+    s.outlets.push(newOutlet(s, loc, false));
+    addLog(s, 'Outlet baru dibuka di ' + LOCS[loc].n + '.', 'good');
+    checkGoals(s);
+    return ok('Outlet ' + LOCS[loc].n + ' resmi buka besok pagi dengan satu barista dan satu kepala toko.');
+  }
+  function closeOutlet(s, id) {
+    const o = s.outlets.find(x => x.id === id);
+    if (o.own) return fail('Warung pertama tidak bisa ditutup.');
+    const back = R(LOCS[o.loc].setup * 0.2);
+    s.cash += back; s.cur.other -= back;
+    s.outlets = s.outlets.filter(x => x.id !== id);
+    addLog(s, 'Outlet ' + LOCS[o.loc].n + ' ditutup. Peralatan terjual ' + rp(back) + '.', 'warn');
+    return ok('Outlet ditutup.');
+  }
+  function trainCost(s) { return s.training >= 3 ? 0 : R(TRAIN[s.training + 1] * s.infl * (1 + 0.5 * (s.outlets.length - 1))); }
+  function train(s) {
+    if (s.training >= 3) return fail('Pelatihan sudah di tingkat tertinggi.');
+    const cost = trainCost(s);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + '.');
+    spend(s, cost, 'other'); s.training++;
+    return ok('Seluruh tim naik ke pelatihan tingkat ' + s.training + '.');
+  }
+  function canResearch(s, id) {
+    const r = RES[id];
+    if (s.research[id]) return 'Sudah dimiliki';
+    if (r.need && !s.research[r.need]) return 'Butuh: ' + RES[r.need].n;
+    if (r.outlets && s.outlets.length < r.outlets) return 'Butuh ' + r.outlets + ' outlet';
+    if (r.rep && s.rep < r.rep) return 'Butuh reputasi ' + r.rep;
+    return '';
+  }
+  function research(s, id) {
+    const why = canResearch(s, id);
+    if (why) return fail(why + '.');
+    const cost = R(RES[id].cost * s.infl);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + '.');
+    spend(s, cost, 'capex'); s.research[id] = true;
+    if (id === 'r_ojol') s.ojol = true;
+    if (id === 'r_supplier') s.auto.on = true;
+    addLog(s, 'Pengembangan baru: ' + RES[id].n + '.', 'good');
+    return ok(RES[id].n + ' aktif.');
+  }
+  function campCost(s, id) { return R(CAMP[id].cost * s.infl * (0.6 + 0.4 * s.outlets.length)); }
+  function campaign(s, id) {
+    const c = CAMP[id];
+    if (c.rep && s.rep < c.rep) return fail('Butuh reputasi ' + c.rep + '.');
+    if (c.outlets && s.outlets.length < c.outlets) return fail('Butuh ' + c.outlets + ' outlet.');
+    const cost = campCost(s, id);
+    if (s.cash < cost) return fail('Butuh ' + rp(cost) + '.');
+    spend(s, cost, 'mkt'); addBuzz(s, c.buzz);
+    return ok(c.n + ' berjalan. Keramaian naik dan akan memudar pelan-pelan.');
+  }
+  function addBuzz(s, b) { s.buzz = clamp(s.buzz + b * (1 - s.buzz), 0, 1); }
+  function takeLoan(s, type, amt, months) {
+    const L = LOAN[type];
+    amt = Math.floor(amt / JT) * JT;
+    if (amt < JT) return fail('Minimal pinjaman Rp 1 juta.');
+    if (amt > loanLimit(s, type)) return fail('Melebihi plafon yang tersedia.');
+    const r = L.rate / 12, pay = R(amt * r / (1 - Math.pow(1 + r, -months)));
+    s.loans.push({ type, bal: amt, r, pay, left: months });
+    s.cash += amt;
+    addLog(s, L.n + ' cair ' + rp(amt) + ', cicilan ' + rp(pay) + ' selama ' + months + ' bulan.', 'info');
+    return ok('Pinjaman cair. Cicilan ' + rp(pay) + ' tiap tanggal 5.');
+  }
+  function repayLoan(s, i) {
+    const l = s.loans[i];
+    if (!l) return fail('Pinjaman tidak ditemukan.');
+    if (s.cash < l.bal) return fail('Butuh ' + rp(l.bal) + ' untuk melunasi.');
+    s.cash -= l.bal; s.loans.splice(i, 1);
+    return ok('Pinjaman lunas.');
+  }
+
+  /* ---------- Kejadian ---------- */
+  const outletName = o => LOCS[o.loc].n;
+  const ef = s => s.infl * (0.4 + 0.6 * s.outlets.length); /* biaya kejadian ikut ukuran usaha */
+  const GAP = { sidak: 150, naikgaji: 120, investor: 240, calonmitra: 20, sewa: 120, viral: 45, selisih: 45, kopinaik: 90, tempat: 90 };
+  const EVENTS = {
+    selebgram: {
+      w: s => s.rep >= 35 ? 1 : 0,
+      build: s => ({
+        title: 'Selebgram kuliner mampir',
+        text: 'Seorang selebgram dengan 80 ribu pengikut duduk di warung Anda dan menawarkan ulasan berbayar.',
+        choices: [
+          { label: 'Bayar ulasan', hint: rp(2 * JT * s.infl), can: s => s.cash >= 2 * JT * s.infl,
+            run: s => { spend(s, R(2 * JT * s.infl), 'mkt'); addBuzz(s, 0.4); return 'Videonya tayang malam ini. Bersiaplah, besok lebih ramai.'; } },
+          { label: 'Traktir saja', hint: 'gratis, efek kecil', run: s => { addBuzz(s, 0.1); return 'Ia mengunggah satu foto dengan ucapan terima kasih.'; } },
+          { label: 'Tolak dengan sopan', run: () => 'Ia membayar kopinya dan pergi.' },
+        ],
+      }),
+    },
+    sidak: {
+      w: s => s.day > 40 ? 0.8 : 0,
+      build: s => ({
+        title: 'Sidak dinas kesehatan',
+        text: s.research.r_cert ? 'Petugas memeriksa dapur dan sertifikat Anda. Semuanya lengkap.' :
+          'Petugas memeriksa dapur. Anda belum punya sertifikat laik higiene.',
+        choices: s.research.r_cert ? [
+          { label: 'Terima kasih, Pak', run: s => { s.rep = clamp(s.rep + 2, 0, 100); return 'Stiker "Laik Higiene" ditempel di pintu. Reputasi naik.'; } },
+        ] : [
+          { label: 'Bayar denda resmi', hint: rp(ef(s) * 1.5 * JT), run: s => { spend(s, R(ef(s) * 1.5 * JT), 'other'); return 'Denda dibayar. Anda diberi waktu untuk mengurus sertifikat.'; } },
+          { label: 'Coba "damai" di tempat', hint: rp(ef(s) * 0.5 * JT) + ', berisiko', run: s => {
+            spend(s, R(ef(s) * 0.5 * JT), 'other');
+            if (rnd(s) < 0.5) { s.rep = clamp(s.rep - 8, 0, 100); return 'Kabar itu bocor ke grup warga. Reputasi turun 8.'; }
+            return 'Petugas pergi tanpa catatan. Kali ini lolos.';
+          } },
+        ],
+      }),
+    },
+    susu: {
+      w: s => !s.flags.noSusu ? 0.8 : 0,
+      build: s => ({
+        title: 'Pemasok susu telat',
+        text: 'Truk pemasok susu mogok. Dua hari ke depan tidak ada kiriman susu segar.',
+        choices: [
+          { label: 'Borong di minimarket', hint: 'harga +40%, ' + rp(2 * (s.use.susu || 5) * unitPrice(s, 'susu') * 1.4), can: s => s.cash >= 2 * (s.use.susu || 5) * unitPrice(s, 'susu') * 1.4,
+            run: s => { const q = Math.ceil(2 * (s.use.susu || 5)), c = R(q * unitPrice(s, 'susu') * 1.4); s.cash -= c; s.stock.susu.push({ q, age: 0, c: c / q, g: 0 }); s.flags.noSusu = 2; return 'Anda membeli ' + q + ' liter susu eceran.'; } },
+          { label: 'Jalan dengan stok yang ada', run: s => { s.flags.noSusu = 2; return 'Dua hari ini susu tidak bisa dibeli. Menu berbahan susu bisa kosong.'; } },
+        ],
+      }),
+    },
+    kopinaik: {
+      w: s => s.pidx.kopi < 1.2 ? 0.7 : 0,
+      build: s => ({
+        title: 'Harga kopi dunia melonjak',
+        text: 'Panen gagal di beberapa daerah. Mulai besok harga biji kopi naik sekitar 35% dan baru turun berangsur-angsur.',
+        choices: [
+          { label: 'Borong stok 30 hari sekarang', hint: rp(quoteBuy(s, 'kopi', Math.ceil((s.use.kopi || 0.5) * 30)).cost),
+            can: s => s.cash >= quoteBuy(s, 'kopi', Math.ceil((s.use.kopi || 0.5) * 30)).cost,
+            run: s => { const r = buy(s, 'kopi', Math.ceil((s.use.kopi || 0.5) * 30)); s.pidx.kopi += 0.35; return r.msg; } },
+          { label: 'Beli seperti biasa', run: s => { s.pidx.kopi += 0.35; return 'Harga beli kopi naik mulai besok.'; } },
+        ],
+      }),
+    },
+    naikgaji: {
+      w: s => s.outlets.some(o => o.staff > 0) && s.wagePct < 130 ? 0.9 : 0,
+      build: s => {
+        const n = s.outlets.reduce((a, o) => a + o.staff, 0);
+        return {
+          title: 'Karyawan minta naik gaji',
+          text: 'Para barista menghadap bersama. Harga kebutuhan naik dan mereka minta upah disesuaikan.',
+          choices: [
+            { label: 'Naikkan upah 10%', hint: 'biaya gaji naik permanen', run: s => { s.wagePct += 10; for (const o of s.outlets) o.morale = clamp(o.morale + 12, 0, 100); return 'Upah naik menjadi ' + s.wagePct + '% dari UMR. Tim bersemangat.'; } },
+            { label: 'Beri bonus sekali', hint: rp(n * 0.5 * JT * s.infl), can: s => s.cash >= n * 0.5 * JT * s.infl,
+              run: s => { spend(s, R(n * 0.5 * JT * s.infl), 'wages'); for (const o of s.outlets) o.morale = clamp(o.morale + 7, 0, 100); return 'Bonus dibagikan. Suasana membaik untuk sementara.'; } },
+            { label: 'Tolak', run: s => { for (const o of s.outlets) o.morale = clamp(o.morale - 15, 0, 100); return 'Mereka kembali bekerja dengan wajah masam. Semangat turun.'; } },
+          ],
+        };
+      },
+    },
+    resign: {
+      w: s => s.outlets.some(o => o.morale < 42 && o.staff > (o.own ? 0 : 1)) ? 1.6 : 0,
+      init: s => ({ id: pick(s, s.outlets.filter(o => o.morale < 42 && o.staff > (o.own ? 0 : 1))).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0];
+        return { title: 'Barista mengundurkan diri', text: 'Seorang barista di ' + outletName(o) + ' pamit. Katanya capek dan upahnya tidak sepadan.',
+          choices: [
+            { label: 'Tahan dengan bonus', hint: rp(0.8 * JT * s.infl), can: s => s.cash >= 0.8 * JT * s.infl, run: s => { spend(s, R(0.8 * JT * s.infl), 'wages'); o.morale = clamp(o.morale + 10, 0, 100); return 'Ia bersedia bertahan.'; } },
+            { label: 'Lepaskan', run: () => { if (o.staff > (o.own ? 0 : 1)) o.staff--; return 'Tim di ' + outletName(o) + ' berkurang satu orang.'; } },
+          ] };
+      },
+    },
+    padam: {
+      w: () => 0.7,
+      init: s => ({ id: pick(s, s.outlets).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0];
+        return { title: 'Listrik padam bergilir', text: 'PLN mengumumkan pemadaman seharian di sekitar ' + outletName(o) + '.',
+          choices: [
+            { label: 'Sewa genset', hint: rp(0.6 * JT * s.infl), can: s => s.cash >= 0.6 * JT * s.infl, run: s => { spend(s, R(0.6 * JT * s.infl), 'other'); return 'Genset menyala. Outlet buka seperti biasa.'; } },
+            { label: 'Tutup sehari', run: () => { o.closed = 1; return outletName(o) + ' tutup hari ini.'; } },
+          ] };
+      },
+    },
+    pesaing: {
+      w: s => s.outlets.some(o => o.comp < 3 && o.known > 0.7) ? 0.9 + 0.3 * s.outlets.length : 0,
+      init: s => ({ id: pick(s, s.outlets.filter(o => o.comp < 3 && o.known > 0.7)).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0];
+        return { title: 'Pesaing baru buka', text: 'Kedai kopi baru buka tak jauh dari ' + outletName(o) + ' dengan promo pembukaan besar-besaran.',
+          choices: [
+            { label: 'Balas dengan promo', hint: rp(2 * JT * s.infl), can: s => s.cash >= 2 * JT * s.infl, run: s => { spend(s, R(2 * JT * s.infl), 'mkt'); addBuzz(s, 0.15); return 'Promo Anda menahan pelanggan. Pesaing tetap ada, tapi dampaknya teredam.'; } },
+            { label: 'Fokus ke kualitas', run: () => { o.comp++; return 'Sebagian pelanggan mencoba tempat baru. Pengunjung ' + outletName(o) + ' turun sampai Anda kembali unggul.'; } },
+          ] };
+      },
+    },
+    viral: {
+      w: s => s.rep >= 60 ? 0.6 : 0,
+      build: () => ({ title: 'Viral di media sosial', text: 'Video pelanggan tentang kopi Anda ditonton ratusan ribu kali. Antrean akan memanjang beberapa hari ini.',
+        choices: [{ label: 'Siapkan stok!', run: s => { addBuzz(s, 0.6); return 'Keramaian melonjak. Pastikan stok dan barista cukup.'; } }] }),
+    },
+    ulasan: {
+      w: s => s.last && s.last.lost / Math.max(1, s.last.served + s.last.lost) > 0.15 ? 1.5 : 0.2,
+      build: s => ({ title: 'Ulasan buruk beredar', text: 'Seorang pelanggan menulis panjang soal antrean lama dan menu kosong. Ulasannya mulai dibagikan orang.',
+        choices: [
+          { label: 'Minta maaf dan traktir', hint: rp(1 * JT * s.infl), can: s => s.cash >= 1 * JT * s.infl, run: s => { spend(s, R(1 * JT * s.infl), 'mkt'); s.rep = clamp(s.rep - 1, 0, 100); return 'Ia memperbarui ulasannya. Kerusakan nyaris tidak terasa.'; } },
+          { label: 'Abaikan', run: s => { s.rep = clamp(s.rep - 6, 0, 100); return 'Ulasan itu bertahan di halaman pertama pencarian. Reputasi turun 6.'; } },
+        ] }),
+    },
+    katering: {
+      w: s => s.rep >= 40 ? 0.9 : 0,
+      init: s => ({ n: 60 + Math.floor(rnd(s) * 5) * 20 }),
+      build: (s, d) => {
+        const p = R(s.prices.kopsus * 0.85), r = MENU.kopsus.r;
+        const enough = s => Object.keys(r).every(i => stockQty(s, i) >= r[i] * d.n);
+        return { title: 'Pesanan katering kantor', text: 'Sebuah kantor memesan ' + d.n + ' gelas Kopi Susu untuk rapat siang ini, dengan harga ' + rp(p) + ' per gelas.',
+          choices: [
+            { label: 'Terima pesanan', hint: enough(s) ? '+' + rp(p * d.n) : 'stok tidak cukup', can: enough, run: s => {
+              let c = 0; for (const i in r) c += consume(s, i, r[i] * d.n);
+              s.cash += p * d.n; s.cur.rev += p * d.n; s.cur.cogs += c; s.rep = clamp(s.rep + 1, 0, 100);
+              return 'Pesanan terkirim tepat waktu. Masuk ' + rp(p * d.n) + '.';
+            } },
+            { label: 'Tolak', run: () => 'Mereka memesan ke tempat lain.' },
+          ] };
+      },
+    },
+    sewa: {
+      w: s => s.outlets.some(o => s.day - o.opened > 300 && o.rentMult < 1.6) ? 0.8 : 0,
+      init: s => ({ id: pick(s, s.outlets.filter(o => s.day - o.opened > 300 && o.rentMult < 1.6)).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0];
+        return { title: 'Pemilik ruko menaikkan sewa', text: 'Kontrak ' + outletName(o) + ' diperpanjang. Pemilik minta sewa naik 10%.',
+          choices: [
+            { label: 'Terima', run: () => { o.rentMult *= 1.1; return 'Sewa naik 10%.'; } },
+            { label: 'Tawar', hint: 'bisa lebih baik, bisa lebih buruk', run: s => {
+              if (rnd(s) < 0.55) { o.rentMult *= 1.04; return 'Tawar-menawar berhasil. Sewa hanya naik 4%.'; }
+              o.rentMult *= 1.13; return 'Pemilik tersinggung. Sewa malah naik 13%.';
+            } },
+          ] };
+      },
+    },
+    rusak: {
+      w: s => s.outlets.some(o => o.equip > 0) ? 0.8 : 0,
+      init: s => ({ id: pick(s, s.outlets.filter(o => o.equip > 0)).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0], cost = R(1.5 * JT * o.equip * s.infl);
+        return { title: 'Mesin espresso rusak', text: 'Mesin di ' + outletName(o) + ' bocor dan tekanannya tidak stabil.',
+          choices: [
+            { label: 'Panggil teknisi hari ini', hint: rp(cost), can: s => s.cash >= cost, run: s => { spend(s, cost, 'other'); return 'Mesin kembali normal sebelum jam buka.'; } },
+            { label: 'Tunggu suku cadang murah', hint: 'kapasitas turun 5 hari', run: () => { o.broken = 5; return 'Lima hari ke depan ' + outletName(o) + ' hanya melayani 60% kapasitas.'; } },
+          ] };
+      },
+    },
+    banjir: {
+      w: s => seasonTags(s.day).includes('Musim hujan') && s.outlets.some(o => o.loc === 'gang' || o.loc === 'pasar') ? 0.7 : 0,
+      init: s => ({ id: pick(s, s.outlets.filter(o => o.loc === 'gang' || o.loc === 'pasar')).id }),
+      build: (s, d) => {
+        const o = s.outlets.find(x => x.id === d.id) || s.outlets[0];
+        return { title: 'Banjir semata kaki', text: 'Hujan semalaman membuat air masuk ke ' + outletName(o) + '.',
+          choices: [{ label: 'Bersihkan dan keringkan', hint: rp(1.5 * JT * s.infl) + ', tutup 2 hari', run: s => { spend(s, R(1.5 * JT * s.infl), 'other'); o.closed = 2; return outletName(o) + ' tutup dua hari untuk bersih-bersih.'; } }] };
+      },
+    },
+    tempat: {
+      w: s => Object.keys(LOCS).some(l => !s.outlets.some(o => o.loc === l)) && !s.flags.deal && s.day > 60 ? 0.6 : 0,
+      init: s => ({ loc: pick(s, Object.keys(LOCS).filter(l => !s.outlets.some(o => o.loc === l))) }),
+      build: (s, d) => ({ title: 'Tawaran tempat miring', text: 'Kenalan Anda melepas ruko di ' + LOCS[d.loc].n + '. Kalau Anda ambil dalam waktu dekat, biaya buka di sana lebih murah 30%.',
+        choices: [{ label: 'Simpan tawarannya', run: s => { s.flags.deal = d.loc; s.flags.dealDays = 30; return 'Diskon 30% berlaku 30 hari untuk ' + LOCS[d.loc].n + '. Lihat di halaman Outlet.'; } }] }),
+    },
+    bazar: {
+      w: () => 0.8,
+      build: s => ({ title: 'Bazar komunitas akhir pekan', text: 'Panitia bazar menawarkan satu lapak. Ramai atau tidaknya tergantung cuaca.',
+        choices: [
+          { label: 'Ambil lapak', hint: rp(1.5 * JT * s.infl), can: s => s.cash >= 1.5 * JT * s.infl, run: s => {
+            spend(s, R(1.5 * JT * s.infl), 'mkt');
+            const g = R((1.2 + rnd(s) * 3.3) * JT * s.infl * (0.6 + s.rep / 100));
+            s.cash += g; s.cur.rev += g * 1.5; s.cur.cogs += g * 0.5; addBuzz(s, 0.12);
+            return 'Lapak Anda menghasilkan laba kotor ' + rp(g) + ' dan banyak wajah baru mengenal merek Anda.';
+          } },
+          { label: 'Lewatkan', run: () => 'Anda memilih fokus di warung.' },
+        ] }),
+    },
+    selisih: {
+      w: s => s.outlets.length > 1 && !s.research.r_pos ? 1 : 0,
+      build: s => ({ title: 'Kas cabang tidak cocok', text: 'Catatan penjualan dan uang di laci cabang berbeda cukup jauh. Tanpa kasir digital, sulit tahu ke mana uangnya.',
+        choices: [{ label: 'Catat sebagai kerugian', run: s => { const x = R(Math.min(3 * JT, Math.max(0, s.cash) * 0.03)); spend(s, x, 'fee'); return 'Hilang ' + rp(x) + '. Kasir digital di halaman Pengembangan mencegah ini.'; } }] }),
+    },
+    calonmitra: {
+      w: s => s.research.r_franchise && s.rep >= 55 && s.franchise.length < s.outlets.length * 2 ? 1.1 : 0,
+      init: s => ({ q: 0.25 + rnd(s) * 0.7, name: pick(s, ['Pak Darsono', 'Bu Lestiani', 'Mas Bagaskara', 'Bu Winarti', 'Pak Sihombing', 'Mbak Kinanthi', 'Pak Tanuwijaya', 'Bu Rahmadani']), kota: pick(s, ['Semarang', 'Malang', 'Medan', 'Makassar', 'Pontianak', 'Padang', 'Balikpapan', 'Manado', 'Cirebon', 'Purwokerto']) }),
+      build: (s, d) => {
+        const fee = R(75 * JT * s.infl);
+        const hint = d.q > 0.7 ? 'Berpengalaman mengelola restoran dan modalnya kuat.' : d.q > 0.45 ? 'Belum pernah usaha kuliner, tapi serius dan mau belajar.' : 'Bicaranya besar, tapi enggan ikut pelatihan.';
+        return { title: 'Calon mitra waralaba', text: d.name + ' ingin membuka ' + s.brand + ' di ' + d.kota + '. ' + hint,
+          choices: [
+            { label: 'Terima sebagai mitra', hint: '+' + rp(fee) + ' dan royalti 5%', run: s => {
+              s.cash += fee; s.cur.royalty += fee; s.franchise.push({ name: d.name, kota: d.kota, q: d.q, since: s.day });
+              addLog(s, d.name + ' menjadi mitra waralaba di ' + d.kota + '.', 'good'); checkGoals(s);
+              return 'Kontrak ditandatangani. Biaya lisensi ' + rp(fee) + ' masuk kas.';
+            } },
+            { label: 'Tolak', run: () => 'Anda menolak dengan halus.' },
+          ] };
+      },
+    },
+    mitranakal: {
+      w: s => s.franchise.some(f => f.q < 0.5) ? 1.4 : 0,
+      init: s => ({ i: s.franchise.findIndex(f => f.q < 0.5) }),
+      build: (s, d) => {
+        const f = s.franchise[d.i] || s.franchise[0];
+        return { title: 'Mitra waralaba bermasalah', text: 'Gerai ' + f.kota + ' milik ' + f.name + ' ketahuan memakai bahan murah dan mengabaikan SOP. Keluhan pelanggan mulai menyebut merek Anda.',
+          choices: [
+            { label: 'Kirim tim pembina', hint: rp(5 * JT * s.infl), can: s => s.cash >= 5 * JT * s.infl, run: s => { spend(s, R(5 * JT * s.infl), 'other'); f.q = 0.65; return 'Dua minggu pendampingan membuat gerai itu kembali sesuai standar.'; } },
+            { label: 'Putus kontrak', run: s => { s.franchise.splice(s.franchise.indexOf(f), 1); s.rep = clamp(s.rep - 2, 0, 100); return 'Kontrak diputus. Royalti dari ' + f.kota + ' berhenti.'; } },
+            { label: 'Biarkan', run: s => { s.rep = clamp(s.rep - 6, 0, 100); return 'Keluhan terus berdatangan. Reputasi turun 6.'; } },
+          ] };
+      },
+    },
+    investor: {
+      w: s => s.outlets.length >= 2 && s.equity === 0 && s.rep >= 55 ? 0.5 : 0,
+      init: s => ({ amt: Math.max(100 * JT, R(valuation(s) * 0.2 / (10 * JT)) * 10 * JT) }),
+      build: (s, d) => ({ title: 'Tawaran investor', text: 'Seorang investor menawarkan ' + rp(d.amt) + ' untuk 20% kepemilikan. Sebagai gantinya, 20% laba bulanan menjadi haknya untuk seterusnya.',
+        choices: [
+          { label: 'Terima modalnya', hint: '+' + rp(d.amt), run: s => { s.cash += d.amt; s.equity = 0.2; addLog(s, 'Investor masuk dengan ' + rp(d.amt) + ' untuk 20% saham.', 'info'); return 'Dana masuk. Dividen 20% dari laba dibayar tiap tanggal 10.'; } },
+          { label: 'Tetap milik sendiri', run: () => 'Anda memilih tumbuh dengan modal sendiri.' },
+        ] }),
+    },
+  };
+  function buildEvent(s) {
+    if (!s.pending) return null;
+    const e = EVENTS[s.pending.id];
+    return e ? e.build(s, s.pending.data || {}) : null;
+  }
+  function resolveEvent(s, i) {
+    const ev = buildEvent(s);
+    if (!ev) { s.pending = null; return ok(''); }
+    const ch = ev.choices[i];
+    if (!ch) return fail('Pilihan tidak ada.');
+    if (ch.can && !ch.can(s)) return fail('Pilihan ini belum bisa diambil.');
+    const msg = ch.run(s);
+    addLog(s, ev.title + ': ' + msg, 'event');
+    s.pending = null;
+    return ok(msg);
+  }
+  function rollEvent(s) {
+    if (s.eventCd > 0) { s.eventCd--; return; }
+    if (rnd(s) > (s.mode === 'santai' ? 0.16 : 0.2)) return;
+    let tot = 0;
+    const list = [];
+    for (const id in EVENTS) {
+      if (s.flags.lastEv === id) continue;
+      if (s.evLast[id] && s.day - s.evLast[id] < (GAP[id] || 30)) continue;
+      const w = EVENTS[id].w(s);
+      if (w > 0) { list.push([id, w]); tot += w; }
+    }
+    if (!list.length) return;
+    let x = rnd(s) * tot;
+    for (const [id, w] of list) {
+      if (x < w) {
+        s.pending = { id, data: EVENTS[id].init ? EVENTS[id].init(s) : {} };
+        s.flags.lastEv = id; s.evLast[id] = s.day; s.eventCd = 3;
+        return;
+      }
+      x -= w;
+    }
+  }
+
+  /* ---------- Putaran harian ---------- */
+  function consume(s, k, q) {
+    let cost = 0;
+    const arr = s.stock[k];
+    while (q > 1e-9 && arr.length) {
+      const b = arr[0], t = Math.min(b.q, q);
+      cost += t * b.c; b.q -= t; q -= t;
+      if (b.q <= 1e-9) arr.shift();
+    }
+    return cost;
+  }
+  function autoRestock(s, notes) {
+    if (!s.auto.on || !s.research.r_supplier) return;
+    let spent = 0;
+    for (const k in ING) {
+      if (k === 'susu' && s.flags.noSusu > 0) continue;
+      const days = Math.min(s.auto.days, shelf(s, k) - 1);
+      let q = s.use[k] * days * 1.1 - stockQty(s, k);
+      q = Math.ceil(q / ING[k].step) * ING[k].step;
+      if (q <= 0) continue;
+      const r = buy(s, k, q, true);
+      if (r.ok) spent += quoteBuy(s, k, q, true).cost;
+      else { notes.push('Kiriman ' + ING[k].n.toLowerCase() + ' gagal: kas tidak cukup.'); }
+    }
+    if (spent > 0) notes.push('Pemasok langganan mengirim bahan senilai ' + rp(spent) + '.');
+  }
+  function checkGoals(s) {
+    const done = id => { if (!s.goals[id]) { s.goals[id] = s.day; addLog(s, 'Pencapaian: ' + GOALS.find(g => g.id === id).n + '.', 'good'); } };
+    const lastM = s.months[s.months.length - 1];
+    if (lastM && monthProfit(lastM) > 0) done('g_untung');
+    if (s.rep >= 50) done('g_rep50');
+    if (s.outlets.length >= 2) done('g_cabang');
+    if (lastM && lastM.rev >= 50 * JT) done('g_omzet50');
+    if (s.outlets.length >= 3) done('g_tiga');
+    if (s.rep >= 75) done('g_rep75');
+    if (s.franchise.length >= 1) done('g_mitra');
+    if (s.outlets.length >= 5) done('g_lima');
+    if (valuation(s) >= 5000 * JT) { done('g_valuasi'); if (!s.won) { s.won = true; s.flags.justWon = true; } }
+  }
+
+  function runDay(s) {
+    if (s.over || s.pending) return null;
+    const c = cal(s.day), notes = [], bills = [];
+    const cashStart = s.cash;
+    autoRestock(s, notes);
+
+    /* permintaan dan pelayanan */
+    const rows = [], need = {}, needRaw = {};
+    for (const k in ING) { need[k] = 0; needRaw[k] = 0; }
+    for (const o of s.outlets) {
+      const d = demand(s, o, clamp(1 + gauss(s) * 0.07, 0.8, 1.2));
+      const cap = capacity(s, o), sc = d.total > 0 ? Math.min(1, cap / d.total) : 0;
+      const want = {};
+      for (const k in d.units) {
+        want[k] = d.units[k] * sc;
+        for (const i in MENU[k].r) { need[i] += want[k] * MENU[k].r[i]; needRaw[i] += want[k] * MENU[k].r[i]; }
+      }
+      rows.push({ o, d, cap, want });
+    }
+    const avail = {};
+    for (const k in ING) avail[k] = need[k] > 0 ? Math.min(1, stockQty(s, k) / need[k]) : 1;
+    let rev = 0, cogs = 0, served = 0, lost = 0, fee = 0, share = 0, satW = 0, satSum = 0;
+    const sold = {}, short = {};
+    for (const row of rows) {
+      const { o, d, cap, want } = row;
+      let oRev = 0, oServed = 0;
+      for (const k in want) {
+        let f = 1;
+        for (const i in MENU[k].r) if (avail[i] < f) { f = avail[i]; }
+        if (f < 0.98) for (const i in MENU[k].r) if (avail[i] < 0.98) short[i] = true;
+        const n = Math.floor(want[k] * f + rnd(s) * 0.999);
+        if (n <= 0) continue;
+        let got = n;
+        for (const i in MENU[k].r) got = Math.min(got, Math.floor(stockQty(s, i) / MENU[k].r[i] + 1e-6));
+        if (got <= 0) continue;
+        for (const i in MENU[k].r) cogs += consume(s, i, MENU[k].r[i] * got);
+        const price = R(s.prices[k] * (1 + o.adj / 100) / 500) * 500;
+        oRev += got * price; oServed += got; sold[k] = (sold[k] || 0) + got;
+      }
+      const oLost = Math.max(0, d.total - oServed);
+      const lostFrac = d.total > 0 ? oLost / d.total : 0;
+      const util = cap > 0 ? d.total / cap : (d.total > 0 ? 2 : 0);
+      const sat = clamp(quality(s, o) + clamp(-30 * (d.ratio - 1), -12, 5) - Math.min(20, 35 * lostFrac), 0, 100);
+      if (d.total > 0) { satW += d.total; satSum += sat * d.total; }
+      let oFee = 0;
+      if (s.ojol) oFee += oRev * 0.2 * (0.25 / 1.25);
+      if (!o.own && !s.research.r_pos) oFee += oRev * 0.025;
+      const mTarget = 55 + (s.wagePct - 100) * 0.9 - 40 * Math.max(0, util - 0.9) + s.training * 3;
+      o.morale = clamp(o.morale + (mTarget - o.morale) * 0.15, 5, 100);
+      o.known = Math.min(1, o.known + 0.02 + 0.02 * s.buzz);
+      if (o.comp > 0 && s.rep > 70 && rnd(s) < 0.012) o.comp--;
+      o.last = { vis: R(d.vis), demand: R(d.total), served: oServed, lost: R(oLost), rev: oRev, util, cap: R(cap), closed: o.closed > 0, sat: R(sat) };
+      if (o.closed > 0) o.closed--;
+      if (o.broken > 0) o.broken--;
+      rev += oRev; served += oServed; lost += oLost; fee += oFee; share += oRev * (LOCS[o.loc].share || 0);
+    }
+    for (const k in ING) s.use[k] = s.use[k] * 0.7 + needRaw[k] * 0.3;
+    s.cash += rev - fee;
+    s.cur.rev += rev; s.cur.cogs += cogs; s.cur.fee += fee; s.cur.cust += served;
+    if (Object.keys(short).length) notes.push('Kehabisan: ' + Object.keys(short).map(k => ING[k].n.toLowerCase()).join(', ') + '.');
+    if (lost > served * 0.12 && !Object.keys(short).length) notes.push('Sebagian pelanggan pergi karena antrean terlalu panjang.');
+
+    /* royalti waralaba */
+    let royalty = 0;
+    if (s.franchise.length) {
+      const avgRev = s.outlets.length ? rev / s.outlets.length : 0;
+      for (const f of s.franchise) royalty += avgRev * 0.05 * (0.5 + f.q);
+      royalty = R(royalty);
+      s.cash += royalty; s.cur.royalty += royalty;
+    }
+
+    /* reputasi */
+    if (satW > 0) {
+      let target = satSum / satW;
+      for (const f of s.franchise) if (f.q < 0.5) target -= 2;
+      s.rep = clamp(s.rep + (target - s.rep) * 0.035, 0, 100);
+    }
+    s.buzz *= 0.94;
+
+    /* biaya */
+    const ops = R(opsCost(s) + rev * 0.06 + share);
+    spend(s, ops, 'ops');
+    const w = dailyWages(s);
+    s.wagesDue += w; s.cur.wages += w;
+    if (c.wd === 5) { s.cash -= s.wagesDue; bills.push(['Gaji mingguan', s.wagesDue]); s.wagesDue = 0; }
+    if (c.dom === 1 && s.day > 1) {
+      let r = 0;
+      for (const o of s.outlets) if (o.opened < s.day) r += rent(s, o);
+      if (r) { spend(s, r, 'rent'); bills.push(['Sewa outlet', r]); }
+    }
+    if (c.dom === 5 && s.loans.length) {
+      let tot = 0, intr = 0;
+      for (const l of s.loans) {
+        const i = l.bal * l.r, pay = Math.min(l.pay, l.bal + i);
+        intr += i; tot += pay; l.bal -= pay - i; l.left--;
+      }
+      s.loans = s.loans.filter(l => l.left > 0 && l.bal > 1);
+      s.cash -= tot; s.cur.interest += intr; bills.push(['Cicilan pinjaman', tot]);
+    }
+    if (c.dom === 10 && s.equity > 0) {
+      const lm = s.months[s.months.length - 1], div = lm ? Math.max(0, monthProfit(lm)) * s.equity : 0;
+      if (div > 0) { spend(s, R(div), 'other'); bills.push(['Dividen investor', R(div)]); }
+    }
+    if (c.dom === 15 && s.taxDue > 0) { spend(s, s.taxDue, 'tax'); bills.push([s.bigTax ? 'Pajak penghasilan 22% laba' : 'PPh final UMKM 0,5%', s.taxDue]); s.taxDue = 0; }
+    if (c.dom === 25) { const x = R(3 * JT * s.infl); spend(s, x, 'owner'); bills.push(['Biaya hidup pemilik', x]); }
+    if (c.month === 3 && c.dom === 20) {
+      const thr = R(dailyWages(s) * 30);
+      if (thr > 0) { spend(s, thr, 'wages'); bills.push(['THR karyawan', thr]); for (const o of s.outlets) o.morale = clamp(o.morale + 8, 0, 100); }
+    }
+
+    /* bahan basi */
+    let waste = 0;
+    const spoiled = [];
+    for (const k in ING) {
+      const lim = shelf(s, k);
+      let q = 0;
+      for (const b of s.stock[k]) b.age++;
+      s.stock[k] = s.stock[k].filter(b => { if (b.age >= lim) { q += b.q; waste += b.q * b.c; return false; } return true; });
+      if (q > 0.01) spoiled.push((R(q * 10) / 10) + ' ' + ING[k].u + ' ' + ING[k].n.toLowerCase());
+    }
+    s.cur.waste += waste;
+    if (spoiled.length) notes.push('Basi dan dibuang: ' + spoiled.join(', ') + ' (' + rp(waste) + ').');
+
+    /* harga bahan bergerak */
+    for (const k in ING) s.pidx[k] = clamp(s.pidx[k] + 0.06 * (1 - s.pidx[k]) + gauss(s) * 0.018, 0.7, 1.8);
+    if (s.flags.noSusu > 0) s.flags.noSusu--;
+    if (s.flags.dealDays > 0 && --s.flags.dealDays === 0) delete s.flags.deal;
+
+    /* kas minus */
+    if (s.cash < 0) {
+      const pen = R(-s.cash * 0.0015);
+      spend(s, pen, 'interest'); s.negDays++;
+      const lim = s.mode === 'santai' ? 30 : 14;
+      notes.push('Kas minus. Denda keterlambatan ' + rp(pen) + '. Hari ke-' + s.negDays + ' dari batas ' + lim + '.');
+      if (s.negDays >= lim) { s.over = 'bangkrut'; addLog(s, 'Kas minus terlalu lama. Usaha dinyatakan bangkrut.', 'bad'); }
+    } else s.negDays = 0;
+
+    const profit = rev + royalty - cogs - waste - w - fee - ops - s.outlets.reduce((a, o) => a + rent(s, o), 0) / 30;
+    const report = { day: s.day, wx: s.wx, rev, cogs, waste, wages: w, fee, ops, royalty, served, lost: R(lost), profit, bills, notes, sold,
+      cashDelta: s.cash - cashStart, tags: seasonTags(s.day) };
+    s.last = report;
+    s.hist.push({ d: s.day, rev, profit: R(profit), cash: R(s.cash), rep: R(s.rep * 10) / 10, cust: served });
+    if (s.hist.length > 420) s.hist.shift();
+
+    /* tutup bulan dan tahun */
+    if (c.dom === 30) {
+      const m = s.cur; m.y = c.year; m.m = c.month;
+      s.months.push(m); if (s.months.length > 36) s.months.shift();
+      const before = s.ytdRev; s.ytdRev += m.rev;
+      const yearRev = s.months.slice(-12).reduce((a, x) => a + x.rev, 0);
+      s.bigTax = yearRev > UMKM_MAX;
+      s.taxDue = s.bigTax ? R(0.22 * Math.max(0, monthProfit(m))) : R(0.005 * Math.max(0, s.ytdRev - Math.max(before, TAX_FREE)));
+      if (s.bigTax && !s.flags.bigTaxTold) { s.flags.bigTaxTold = true; addLog(s, 'Omzet setahun melewati Rp 4,8 miliar. Usaha keluar dari skema UMKM: pajak kini 22% dari laba bulanan.', 'warn'); }
+      s.cur = newMonth();
+      addLog(s, 'Tutup buku ' + BULAN[c.month - 1] + ': omzet ' + rp(m.rev) + ', laba ' + rp(monthProfit(m)) + '.', monthProfit(m) >= 0 ? 'good' : 'bad');
+      if (s.day % 360 === 0) {
+        s.infl *= 1.04; s.baseWage *= 1.06; s.ytdRev = 0;
+        for (const k in MENU) s.prices[k] = R(s.prices[k] * 1.04 / 500) * 500;
+        addLog(s, 'Ulang tahun usaha: UMR naik 6%, harga bahan dan sewa naik 4%. Harga jual Anda ikut disesuaikan 4%.', 'warn');
+      }
+    }
+    checkGoals(s);
+
+    /* hari berikutnya */
+    s.day++;
+    s.wx = s.wxNext;
+    s.wxNext = rollWeather(s, s.day + 1);
+    s.wxFc = rnd(s) < 0.8 ? s.wxNext : pick(s, Object.keys(WX));
+    if (!s.over) rollEvent(s);
+    return report;
+  }
+
+  return { VERSION, JT, ING, GRADES, MENU, LOCS, EQUIP, DEKOR, TRAIN, RES, CAMP, LOAN, GOALS, WX, HARI, BULAN, TAX_FREE, UMKM_MAX, hqCost,
+    newGame, runDay, cal, dateStr, seasonTags, rp, stockQty, stockValue, shelf, unitPrice, quoteBuy, itemCost, unlocked, wage, dailyWages,
+    quality, capacity, rent, opsCost, wtpOf, demand, forecastNeeds, debt, rev30, loanLimit, valuation, upcoming, monthProfit,
+    buy, setPrice, hire, fire, upgradeEquip, upgradeDekor, setupCost, openOutlet, closeOutlet, trainCost, train, canResearch, research,
+    campCost, campaign, takeLoan, repayLoan, buildEvent, resolveEvent, checkGoals };
+})();
+if (typeof module !== 'undefined') module.exports = Engine;
+
+</script>
+<script>
+/* Kedai Rintisan: antarmuka. */
+(() => {
+  'use strict';
+  const E = Engine, JT = E.JT;
+  const $ = q => document.querySelector(q);
+  const KEY = 'kedai-rintisan-v1';
+  let S = null, tab = 'ringkasan', dialog = null, toastT = 0;
+  const cloud = { db: null, uid: null, busy: false, dirty: false, status: 'Tersimpan di peramban ini' };
+  const draft = { loanType: 'kur', loanAmt: 10, loanMonths: 24, buy: {}, io: '' };
+
+  const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const rp = E.rp;
+  const dec = (x, d) => x.toFixed(d).replace('.', ',');
+  function jt(x) {
+    const a = Math.abs(x), s = x < 0 ? '-' : '';
+    if (a >= 1e9) return s + 'Rp ' + dec(a / 1e9, 2) + ' M';
+    if (a >= 1e6) return s + 'Rp ' + dec(a / 1e6, a >= 1e8 ? 0 : 1) + ' jt';
+    return rp(x);
+  }
+  const qty = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
+  const pct = x => Math.round(x * 100) + '%';
+  const tone = (x, lo, hi) => x >= hi ? 'good' : x >= lo ? 'warn' : 'bad';
+  function toast(msg) {
+    if (!msg) return;
+    const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 3200);
+  }
+
+  /* ---------- Simpan & muat ---------- */
+  function save() {
+    if (!S) return;
+    S.savedAt = Date.now();
+    try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* penyimpanan lokal tidak tersedia */ }
+    cloud.dirty = true; pushCloud();
+  }
+  async function pushCloud() {
+    if (!cloud.db || !cloud.uid || cloud.busy || !cloud.dirty || !S) return;
+    cloud.busy = true; cloud.dirty = false;
+    try {
+      await cloud.db.collection('data/users/' + cloud.uid).doc('save').set({ json: JSON.stringify(S), day: S.day, savedAt: S.savedAt });
+      cloud.status = 'Tersimpan di akun Claude Anda';
+    } catch (e) { cloud.status = 'Tersimpan di peramban ini (simpanan akun gagal)'; }
+    cloud.busy = false;
+    const el = $('#savestat'); if (el) el.textContent = cloud.status;
+    if (cloud.dirty) setTimeout(pushCloud, 4000);
+  }
+  async function initCloud() {
+    try {
+      if (!window.claude || !window.claude.use) return;
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!db || !user) return;
+      const uid = await user.id();
+      if (!uid) return;
+      cloud.db = db; cloud.uid = uid;
+      const snap = await db.collection('data/users/' + uid).doc('save').get();
+      const data = snap && (typeof snap.data === 'function' ? snap.data() : snap.data || snap);
+      if (data && data.json && (!S || (data.savedAt || 0) > (S.savedAt || 0) + 5000)) {
+        const st = valid(JSON.parse(data.json));
+        if (st) { S = st; toast('Simpanan dari akun Anda dimuat: hari ke-' + S.day + '.'); render(); }
+      }
+      cloud.status = 'Tersimpan di akun Claude Anda';
+      if (S) { cloud.dirty = true; pushCloud(); }
+    } catch (e) { /* tanpa simpanan akun, game tetap jalan */ }
+  }
+  function valid(st) {
+    if (!st || st.v !== E.VERSION || !Array.isArray(st.outlets) || !st.outlets.length || typeof st.cash !== 'number') return null;
+    st.evLast = st.evLast || {}; st.flags = st.flags || {};
+    return st;
+  }
+  function loadLocal() {
+    try { return valid(JSON.parse(localStorage.getItem(KEY))); } catch (e) { return null; }
+  }
+
+  /* ---------- Bantuan hitung ---------- */
+  function needPerDay(k) { const f = E.forecastNeeds(S)[k]; return Math.max(f, S.use[k] || 0); }
+  function coverQty(k, days) {
+    const d = Math.min(days, E.shelf(S, k) - 1), step = E.ING[k].step;
+    return Math.max(0, Math.ceil((needPerDay(k) * d * 1.1 - E.stockQty(S, k)) / step) * step);
+  }
+  function fairRange(k) {
+    const w = S.outlets.map(o => E.wtpOf(S, o) / (1 + o.adj / 100));
+    const r = x => Math.round(E.MENU[k].ref * x / 500) * 500;
+    return [r(Math.min(...w)), r(Math.max(...w))];
+  }
+  function locEstimate(loc) {
+    const fake = { id: -1, loc, opened: S.day, staff: 3, equip: E.LOCS[loc].equip, dekor: 0, morale: 60, comp: 0, closed: 0, broken: 0, rentMult: 1, known: 1, adj: 0, own: false };
+    const w = E.wtpOf(S, fake), prices = {};
+    for (const k in E.MENU) prices[k] = E.MENU[k].ref * w;
+    const s2 = Object.assign({}, S, { prices, wx: 'cerah', buzz: 0 });
+    let rev = 0;
+    for (let wd = 0; wd < 7; wd++) {
+      s2.day = S.day - ((S.day - 1) % 7) + wd;
+      const d = E.demand(s2, fake, 1), sc = d.total > 0 ? Math.min(1, E.capacity(S, fake) / d.total) : 0;
+      for (const k in d.units) rev += d.units[k] * sc * prices[k];
+    }
+    const fixed = E.LOCS[loc].rent * S.infl + (1.5 + 3) * E.wage(S) * 30;
+    return { rev: rev / 7, fixed };
+  }
+
+  /* ---------- Grafik ---------- */
+  function chart() {
+    const h = S.hist.slice(-60);
+    if (h.length < 2) return '<p class="muted small">Grafik muncul setelah dua hari berjalan.</p>';
+    const W = 720, H = 190, L = 58, Rr = 8, T = 10, B = 22, iw = W - L - Rr, ih = H - T - B;
+    const cs = h.map(x => x.cash), ps = h.map(x => x.profit);
+    let lo = Math.min(0, ...cs), hi = Math.max(...cs, 1); const pad = (hi - lo) * 0.08; hi += pad; if (lo < 0) lo -= pad;
+    const x = i => L + iw * i / (h.length - 1), y = v => T + ih * (1 - (v - lo) / (hi - lo));
+    const pm = Math.max(...ps.map(Math.abs), 1), bh = ih * 0.32, by = T + ih;
+    const line = h.map((p, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(p.cash).toFixed(1)).join('');
+    const ticks = [lo < 0 ? lo : 0, (lo + hi) / 2, hi - pad].map(v => `<line x1="${L}" x2="${W - Rr}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y(v) + 3}" text-anchor="end">${esc(jt(v).replace('Rp ', ''))}</text>`).join('');
+    const bars = h.map((p, i) => { const v = p.profit / pm * bh; return `<rect x="${(x(i) - 3).toFixed(1)}" y="${(v >= 0 ? by - v : by).toFixed(1)}" width="6" height="${Math.max(1, Math.abs(v)).toFixed(1)}" fill="var(${p.profit >= 0 ? '--good' : '--bad'})" opacity=".55"/>`; }).join('');
+    const last = h[h.length - 1];
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Grafik kas dan laba harian 60 hari terakhir" style="width:100%;height:auto">
+      ${ticks}${bars}
+      <path d="${line}L${x(h.length - 1)} ${T + ih}L${L} ${T + ih}Z" fill="var(--accent)" opacity=".1"/>
+      <path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2"/>
+      <circle cx="${x(h.length - 1)}" cy="${y(last.cash)}" r="4" fill="var(--accent)"/>
+      <text x="${L}" y="${H - 6}">hari ${h[0].d}</text><text x="${W - Rr}" y="${H - 6}" text-anchor="end">hari ${last.d}</text>
+    </svg><p class="small muted">Garis: saldo kas. Batang: laba harian (hijau untung, merah rugi).</p>`;
+  }
+
+  /* ---------- Halaman ---------- */
+  const TABS = [['ringkasan', 'Ringkasan'], ['menu', 'Menu & harga'], ['stok', 'Stok & belanja'], ['outlet', 'Outlet & tim'],
+    ['pasar', 'Pemasaran'], ['uang', 'Keuangan'], ['riset', 'Pengembangan'], ['catatan', 'Pencapaian & simpanan']];
+
+  function alerts() {
+    const a = [], need = E.forecastNeeds(S);
+    if (S.cash < 0) a.push(['bad', 'Kas minus ' + S.negDays + ' hari. Batasnya ' + (S.mode === 'santai' ? 30 : 14) + ' hari sebelum bangkrut. Ambil pinjaman di halaman Keuangan atau pangkas biaya.']);
+    const short = Object.keys(E.ING).filter(k => need[k] > 0 && E.stockQty(S, k) < need[k] * 0.98);
+    if (short.length && !(S.auto.on && S.research.r_supplier)) a.push(['warn', 'Stok hari ini kurang: ' + short.map(k => E.ING[k].n.toLowerCase()).join(', ') + '. Belanja dulu di halaman Stok.']);
+    for (const o of S.outlets) {
+      if (o.last && o.last.util > 1.05) a.push(['warn', E.LOCS[o.loc].n + ' kewalahan: permintaan ' + pct(o.last.util) + ' dari kapasitas. Tambah barista atau tingkatkan peralatan.']);
+      if (o.morale < 42 && (o.staff > 0)) a.push(['warn', 'Semangat tim ' + E.LOCS[o.loc].n + ' rendah (' + Math.round(o.morale) + '). Karyawan bisa keluar.']);
+      if (o.comp > 0) a.push(['info', E.LOCS[o.loc].n + ' punya ' + o.comp + ' pesaing dekat. Pengunjung berkurang ' + o.comp * 12 + '%.']);
+    }
+    const bills = E.upcoming(S).filter(b => b.d <= 3 && b.amt > Math.max(0, S.cash));
+    for (const b of bills) a.push(['bad', b.n + ' ' + rp(b.amt) + ' jatuh tempo ' + (b.d === 0 ? 'hari ini' : b.d + ' hari lagi') + ', kas belum cukup.']);
+    if (S.flags.deal) a.push(['good', 'Tawaran tempat: buka di ' + E.LOCS[S.flags.deal].n + ' diskon 30%, sisa ' + S.flags.dealDays + ' hari.']);
+    if (S.day <= 3) a.push(['info', 'Mulai dari sini: cek harga di Menu, belanja bahan di Stok, lalu tekan "Jalankan hari". Harga wajar di tiap lokasi berbeda.']);
+    return a.map(([k, t]) => `<div class="alert ${k}">${esc(t)}</div>`).join('');
+  }
+  function struk() {
+    const r = S.last;
+    if (!r) return `<div class="struk"><h3>${esc(S.brand)}</h3><p class="c">Belum ada penjualan.</p><hr><p class="c">Struk hari pertama muncul di sini.</p></div>`;
+    const l = (a, b, cls) => `<div class="l ${cls || ''}"><span>${esc(a)}</span><b>${esc(b)}</b></div>`;
+    const rentDay = S.outlets.reduce((a, o) => a + E.rent(S, o), 0) / 30;
+    const sold = Object.keys(r.sold).map(k => l(E.MENU[k].n, r.sold[k] + ' porsi')).join('');
+    return `<div class="struk"><h3>${esc(S.brand)}</h3>
+      <p class="c">Hari ke-${r.day} · ${esc(E.WX[r.wx])}${r.tags.length ? ' · ' + esc(r.tags.join(', ')) : ''}</p><hr>
+      ${sold || '<p class="c">Tidak ada yang terjual.</p>'}<hr>
+      ${l('Penjualan', rp(r.rev))}${r.royalty ? l('Royalti waralaba', rp(r.royalty)) : ''}
+      ${l('Bahan terpakai', rp(-r.cogs))}${r.waste > 0 ? l('Bahan basi', rp(-r.waste), 'neg') : ''}
+      ${l('Gaji (jatah harian)', rp(-r.wages))}${l('Sewa (jatah harian)', rp(-rentDay))}
+      ${l('Listrik, air, lain-lain', rp(-r.ops))}${r.fee > 0 ? l('Komisi & selisih kas', rp(-r.fee)) : ''}<hr>
+      <div class="l tot ${r.profit >= 0 ? 'pos' : 'neg'}"><span>LABA HARI INI</span><b>${rp(r.profit)}</b></div>
+      ${l('Terlayani / pergi', r.served + ' / ' + r.lost)}
+      ${r.bills.length ? '<hr>' + r.bills.map(b => l('Dibayar: ' + b[0], rp(-b[1]), 'neg')).join('') : ''}
+      ${r.notes.map(n => `<p class="note">* ${esc(n)}</p>`).join('')}
+      <hr><p class="c">Terima kasih, datang lagi ya.</p></div>`;
+  }
+  function vRingkasan() {
+    const up = E.upcoming(S).slice(0, 6);
+    const outs = S.outlets.map(o => {
+      const x = o.last;
+      if (!x) return `<tr><td>${esc(E.LOCS[o.loc].n)}</td><td colspan="5" class="muted">Baru buka, belum ada data.</td></tr>`;
+      if (x.closed) return `<tr><td>${esc(E.LOCS[o.loc].n)}</td><td colspan="5" class="warn">Tutup kemarin.</td></tr>`;
+      const u = Math.min(1.3, x.util);
+      return `<tr><td>${esc(E.LOCS[o.loc].n)}</td><td class="n">${x.vis}</td><td class="n">${x.served}</td><td class="n ${x.lost > x.served * 0.1 ? 'bad' : ''}">${x.lost}</td>
+        <td class="n">${rp(x.rev)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar ${u > 1 ? 'bad' : u > 0.85 ? 'warn' : 'good'}" style="flex:1"><i style="width:${Math.min(100, u * 100)}%"></i></div><span class="num small">${pct(x.util)}</span></div></td></tr>`;
+    }).join('');
+    return `<div class="wrap"><div class="cols"><div class="wrap">
+      ${alerts()}
+      <section class="card"><header><h3>Outlet kemarin</h3><span class="small muted">Kapasitas terpakai di atas 100% berarti pelanggan pergi</span></header>
+        <div class="tablewrap"><table><thead><tr><th>Outlet</th><th class="n">Pengunjung</th><th class="n">Terlayani</th><th class="n">Pergi</th><th class="n">Omzet</th><th>Kapasitas terpakai</th></tr></thead><tbody>${outs}</tbody></table></div></section>
+      <section class="card"><header><h3>Kas dan laba, 60 hari terakhir</h3></header>${chart()}</section>
+      <section class="card"><header><h3>Tagihan mendatang</h3></header>
+        <div class="tablewrap"><table><tbody>${up.map(b => `<tr><td>${esc(b.n)}</td><td class="n">${rp(b.amt)}</td><td class="n muted">${b.d === 0 ? 'hari ini' : b.d + ' hari lagi'}</td></tr>`).join('')}</tbody></table></div></section>
+      <section class="card"><header><h3>Catatan terbaru</h3></header>${logList(8)}</section>
+    </div><div class="wrap">${struk()}</div></div></div>`;
+  }
+  function logList(n) {
+    return `<ul class="log">${S.log.slice(0, n).map(l => `<li><time>hari ${l.d}</time><span class="${l.k === 'good' || l.k === 'bad' || l.k === 'warn' ? l.k : ''}">${esc(l.t)}</span></li>`).join('')}</ul>`;
+  }
+  function vMenu() {
+    const rows = Object.keys(E.MENU).map(k => {
+      const m = E.MENU[k], c = E.itemCost(S, k), p = S.prices[k];
+      if (!E.unlocked(S, k)) return `<tr class="muted"><td>${esc(m.n)}</td><td colspan="6">Belum dimiliki. Buka resepnya di halaman Pengembangan.</td></tr>`;
+      const fr = fairRange(k), sold = S.last && S.last.sold[k] || 0, mg = (p - c) / p;
+      const note = k === 'literan' && !S.ojol ? '<br><span class="small muted">Hanya laku lewat ojek online</span>' : '';
+      return `<tr><td><b>${esc(m.n)}</b>${note}</td><td class="n">${rp(c)}</td>
+        <td class="n"><span class="stepper"><button class="mini" data-act="price" data-k="${k}" data-d="-500" aria-label="Turunkan harga ${esc(m.n)}">−</button>
+          <input type="number" id="price-${k}" step="500" min="1000" value="${p}" data-chg="price" data-k="${k}" aria-label="Harga ${esc(m.n)}">
+          <button class="mini" data-act="price" data-k="${k}" data-d="500" aria-label="Naikkan harga ${esc(m.n)}">+</button></span></td>
+        <td class="n ${tone(mg, 0.4, 0.55)}">${pct(mg)}</td>
+        <td class="n">${fr[0] === fr[1] ? rp(fr[0]) : rp(fr[0]) + ' – ' + rp(fr[1])}</td>
+        <td class="n">${sold}</td>
+        <td><label class="row" style="gap:6px"><input type="checkbox" id="act-${k}" data-chg="active" data-k="${k}" ${S.active[k] ? 'checked' : ''}> dijual</label></td></tr>`;
+    }).join('');
+    return `<div class="wrap"><section class="card"><header><h2>Menu & harga</h2></header>
+      <p class="muted" style="max-width:70ch">Harga dasar berlaku di semua outlet. "Harga wajar" adalah harga yang masih dianggap pantas oleh pelanggan, tergantung lokasi dan kualitas. Di atasnya pembeli cepat berkurang dan reputasi turun; di bawahnya warung lebih ramai tapi margin tipis. Outlet di lokasi mahal bisa diberi penyesuaian harga di halaman Outlet.</p>
+      <div class="tablewrap"><table><thead><tr><th>Menu</th><th class="n">Modal bahan</th><th class="n">Harga jual</th><th class="n">Margin</th><th class="n">Harga wajar</th><th class="n">Terjual kemarin</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+    </section></div>`;
+  }
+  function vStok() {
+    const auto = S.research.r_supplier;
+    let tot3 = 0;
+    const rows = Object.keys(E.ING).map(k => {
+      const g = E.ING[k], q = E.stockQty(S, k), n = needPerDay(k), days = n > 0 ? q / n : 99, up = E.unitPrice(S, k), idx = S.pidx[k];
+      const old = S.stock[k].filter(b => E.shelf(S, k) - b.age <= 1).reduce((a, b) => a + b.q, 0);
+      const q3 = coverQty(k, 3); tot3 += q3 > 0 ? E.quoteBuy(S, k, q3).cost : 0;
+      const d = draft.buy[k] != null ? draft.buy[k] : q3;
+      const cost = d > 0 ? E.quoteBuy(S, k, d).cost : 0;
+      const blocked = k === 'susu' && S.flags.noSusu > 0;
+      return `<tr><td><b>${esc(g.n)}</b><br><span class="small muted">${g.shelf > 900 ? 'tidak basi' : 'tahan ' + E.shelf(S, k) + ' hari'}</span></td>
+        <td class="n">${qty(q)} ${g.u}${old > 0.01 ? `<br><span class="small warn">${qty(old)} basi besok</span>` : ''}</td>
+        <td class="n ${tone(days, 1, 2)}">${n > 0 ? '±' + dec(Math.min(99, days), 1) + ' hari' : '–'}</td>
+        <td class="n">${rp(up)}<br><span class="small ${idx > 1.08 ? 'bad' : idx < 0.94 ? 'good' : 'muted'}">${idx > 1.02 ? 'naik ' : idx < 0.98 ? 'turun ' : ''}${Math.abs(Math.round((idx - 1) * 100))}% dari normal</span></td>
+        <td class="n">${blocked ? '<span class="warn small">Pemasok tidak bisa kirim</span>' : `<span class="stepper">
+          <button class="mini" data-act="fill" data-k="${k}" data-d="1">1 hr</button><button class="mini" data-act="fill" data-k="${k}" data-d="3">3 hr</button><button class="mini" data-act="fill" data-k="${k}" data-d="7">7 hr</button>
+          <input type="number" id="buy-${k}" min="0" step="${g.step}" value="${d}" data-chg="buyqty" data-k="${k}" aria-label="Jumlah beli ${esc(g.n)}"></span>`}</td>
+        <td class="n">${rp(cost)}</td>
+        <td><button data-act="buy" data-k="${k}" ${blocked || !(d > 0) || cost > S.cash ? 'disabled' : ''}>Beli</button></td></tr>`;
+    }).join('');
+    return `<div class="wrap">
+      <section class="card"><header><h2>Stok & belanja</h2><button class="primary" data-act="buyall" ${tot3 > 0 && tot3 <= S.cash ? '' : 'disabled'}>Belanja semua untuk 3 hari · ${rp(tot3)}</button></header>
+      <p class="muted" style="max-width:70ch">Gudang dipakai bersama semua outlet. Bahan dibeli pagi ini dan langsung bisa dipakai. Beli terlalu banyak, bahan basi; terlalu sedikit, pelanggan pulang kecewa. Belanja Rp 2 juta ke atas per bahan dapat potongan 5%, Rp 10 juta ke atas 8%.</p>
+      <div class="tablewrap"><table><thead><tr><th>Bahan</th><th class="n">Stok</th><th class="n">Cukup untuk</th><th class="n">Harga hari ini</th><th class="n">Beli (isi sampai / jumlah)</th><th class="n">Biaya</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
+      <div class="grid">
+      <section class="card"><header><h3>Mutu biji kopi</h3></header>
+        <label for="grade" class="small muted">Berlaku untuk pembelian berikutnya. Mutu rasa dihitung dari campuran stok di gudang.</label>
+        <select id="grade" data-chg="grade">${E.GRADES.map((g, i) => `<option value="${i}" ${S.grade === i ? 'selected' : ''}>${esc(g.n)} · harga x${dec(g.m, 2)} · kualitas +${g.q}</option>`).join('')}</select></section>
+      <section class="card"><header><h3>Pemasok langganan</h3><span class="chip ${auto ? 'good' : ''}">${auto ? 'Aktif tersedia' : 'Belum dimiliki'}</span></header>
+        ${auto ? `<label class="row"><input type="checkbox" id="auto-on" data-chg="auto" ${S.auto.on ? 'checked' : ''}> Kirim otomatis tiap pagi</label>
+          <label class="row" for="auto-days">Jaga stok untuk <select id="auto-days" data-chg="autodays">${[2, 3, 4, 5, 7].map(d => `<option ${S.auto.days === d ? 'selected' : ''}>${d}</option>`).join('')}</select> hari</label>
+          <p class="small muted">Harga 3% lebih mahal dari belanja sendiri. Bahan cepat basi dibatasi sesuai umur simpannya.</p>`
+      : '<p class="small muted">Dengan kontrak pemasok (halaman Pengembangan), bahan dikirim otomatis dan Anda bisa melompat 7 hari sekaligus.</p>'}</section>
+      </div></div>`;
+  }
+  function vOutlet() {
+    const cards = S.outlets.map(o => {
+      const L = E.LOCS[o.loc], cap = Math.round(E.capacity(S, o)), q = Math.round(E.quality(S, o)), x = o.last, min = o.own ? 0 : 1;
+      const eq = o.equip < 3 ? E.EQUIP[o.equip + 1] : null, dk = o.dekor < 2 ? E.DEKOR[o.dekor + 1] : null;
+      return `<section class="card"><header><h3>${esc(L.n)}</h3><span class="row" style="gap:6px">${o.own ? '<span class="chip">Anda jaga sendiri</span>' : '<span class="chip">Kepala toko</span>'}${o.closed > 0 ? '<span class="chip bad">Tutup ' + o.closed + ' hari</span>' : ''}${o.broken > 0 ? '<span class="chip warn">Mesin rusak</span>' : ''}</span></header>
+        <dl class="kv">
+          <dt>Dikenal warga sekitar</dt><dd>${pct(o.known)}</dd>
+          <dt>Kualitas di mata pelanggan</dt><dd class="${tone(q, 45, 65)}">${q}</dd>
+          <dt>Semangat tim</dt><dd class="${tone(o.morale, 42, 60)}">${Math.round(o.morale)}</dd>
+          <dt>Kapasitas layanan</dt><dd>${cap} porsi/hari</dd>
+          <dt>Permintaan kemarin</dt><dd>${x ? x.demand + ' porsi' : '–'}</dd>
+          <dt>Sewa${L.share ? ' + bagi hasil ' + pct(L.share) : ''}</dt><dd>${rp(E.rent(S, o))}/bln</dd>
+          <dt>Pesaing dekat</dt><dd>${o.comp}</dd></dl>
+        <div class="row spread"><span>Barista: <b class="num">${o.staff}</b></span><span class="stepper">
+          <button class="mini" data-act="fire" data-id="${o.id}" ${o.staff <= min ? 'disabled' : ''} title="Pesangon ${rp(JT * S.infl)}">− Kurangi</button>
+          <button class="mini" data-act="hire" data-id="${o.id}" title="Biaya rekrut ${rp(0.5 * JT * S.infl)}">+ Rekrut</button></span></div>
+        <div class="row spread"><span>Peralatan: <b>${esc(E.EQUIP[o.equip].n)}</b><br><span class="small muted">maks. ${E.EQUIP[o.equip].cap} porsi/hari</span></span>
+          ${eq ? `<button class="mini" data-act="equip" data-id="${o.id}" ${S.cash < eq.cost * S.infl ? 'disabled' : ''}>${esc(eq.n)} · ${jt(eq.cost * S.infl)}</button>` : '<span class="chip good">Terlengkap</span>'}</div>
+        <div class="row spread"><span>Dekor: <b>${esc(E.DEKOR[o.dekor].n)}</b></span>
+          ${dk ? `<button class="mini" data-act="dekor" data-id="${o.id}" ${S.cash < dk.cost * S.infl ? 'disabled' : ''}>${esc(dk.n)} · ${jt(dk.cost * S.infl)}</button>` : '<span class="chip good">Maksimal</span>'}</div>
+        <label class="row spread" for="adj-${o.id}"><span>Penyesuaian harga di sini</span><select id="adj-${o.id}" data-chg="adj" data-id="${o.id}">${[-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70].map(a => `<option value="${a}" ${o.adj === a ? 'selected' : ''}>${a > 0 ? '+' : ''}${a}%</option>`).join('')}</select></label>
+        ${o.own ? '' : `<div class="row"><button class="mini ghost" data-act="askclose" data-id="${o.id}">Tutup outlet ini</button></div>`}
+      </section>`;
+    }).join('');
+    const news = Object.keys(E.LOCS).filter(l => !S.outlets.some(o => o.loc === l)).map(l => {
+      const L = E.LOCS[l], cost = E.setupCost(S, l), est = locEstimate(l), deal = S.flags.deal === l;
+      return `<section class="card"><header><h3>${esc(L.n)}</h3>${deal ? '<span class="chip good">Diskon 30%</span>' : ''}</header>
+        <p class="small muted">${esc(L.d)}</p>
+        <dl class="kv"><dt>Biaya buka</dt><dd>${rp(cost)}</dd><dt>Sewa per bulan</dt><dd>${rp(L.rent * S.infl)}</dd>
+          <dt>Orang lewat per hari</dt><dd>±${L.traffic}</dd>
+          <dt>Perkiraan omzet saat sudah dikenal</dt><dd>${jt(est.rev * 30)}/bln</dd>
+          <dt>Biaya tetap (sewa, kepala toko, 3 barista)</dt><dd>${jt(est.fixed)}/bln</dd></dl>
+        <button data-act="open" data-loc="${l}" ${S.cash < cost ? 'disabled' : ''}>${S.cash < cost ? 'Kas belum cukup' : 'Buka outlet di sini'}</button></section>`;
+    }).join('');
+    const tc = E.trainCost(S), staffN = S.outlets.reduce((a, o) => a + o.staff, 0);
+    return `<div class="wrap"><h2>Outlet & tim</h2>
+      <section class="card"><header><h3>Kebijakan tim</h3><span class="small muted">${staffN} barista, ${S.outlets.length - 1} kepala toko · gaji ${rp(E.dailyWages(S) * 30)}/bln</span></header>
+        <div class="row"><label for="wage">Upah barista</label><input type="range" id="wage" min="90" max="150" step="5" value="${S.wagePct}" data-chg="wage">
+          <b class="num">${S.wagePct}% UMR</b><span class="muted small">${rp(E.wage(S))}/hari per barista. Upah di bawah UMR menurunkan semangat, di atasnya menaikkan.</span></div>
+        <div class="row spread"><span>Pelatihan tim: <b>tingkat ${S.training} dari 3</b> <span class="small muted">· tiap tingkat menambah kualitas +4 dan kecepatan layanan 8%</span></span>
+          ${S.training < 3 ? `<button data-act="train" ${S.cash < tc ? 'disabled' : ''}>Latih ke tingkat ${S.training + 1} · ${jt(tc)}</button>` : '<span class="chip good">Tuntas</span>'}</div>
+        ${E.hqCost(S) > 0 ? `<p class="small muted">Kantor pusat (admin, akunting, penyelia) untuk ${S.outlets.length} outlet: ${rp(E.hqCost(S))}/bln.</p>` : ''}
+      </section>
+      <div class="grid">${cards}</div>
+      ${news ? `<h3>Lokasi yang bisa dibuka</h3><p class="muted small" style="max-width:70ch">Outlet baru butuh sekitar sebulan sampai dikenal. Pastikan ada cadangan kas untuk sewa dan gaji selama masa itu. Mulai outlet ketiga, ada biaya kantor pusat Rp 10 juta per outlet tambahan tiap bulan.</p><div class="grid">${news}</div>` : ''}
+    </div>`;
+  }
+  function vPasar() {
+    const camps = Object.keys(E.CAMP).map(id => {
+      const c = E.CAMP[id], cost = E.campCost(S, id);
+      const lock = c.rep && S.rep < c.rep ? 'Butuh reputasi ' + c.rep : c.outlets && S.outlets.length < c.outlets ? 'Butuh ' + c.outlets + ' outlet' : '';
+      return `<section class="card"><header><h3>${esc(c.n)}</h3><span class="num">${rp(cost)}</span></header>
+        <p class="small muted">Menambah keramaian sekitar ${pct(c.buzz * 0.6)} pengunjung, lalu memudar 6% per hari.</p>
+        <button data-act="camp" data-id="${id}" ${lock || S.cash < cost ? 'disabled' : ''}>${lock || 'Jalankan'}</button></section>`;
+    }).join('');
+    return `<div class="wrap"><h2>Pemasaran</h2>
+      <section class="card"><header><h3>Keramaian saat ini</h3><b class="num">+${pct(S.buzz * 0.6)} pengunjung</b></header>
+        <div class="bar"><i style="width:${Math.min(100, S.buzz * 100)}%"></i></div>
+        <p class="small muted" style="max-width:70ch">Promosi mendatangkan orang, tetapi yang membuat mereka kembali adalah reputasi. Promosi besar saat stok atau barista kurang justru merusak reputasi.</p></section>
+      <div class="grid">${camps}</div>
+      <section class="card"><header><h3>Ojek online</h3><span class="chip ${S.research.r_ojol ? 'good' : ''}">${S.research.r_ojol ? 'Bermitra' : 'Belum bermitra'}</span></header>
+        ${S.research.r_ojol ? `<label class="row"><input type="checkbox" id="ojol" data-chg="ojol" ${S.ojol ? 'checked' : ''}> Terima pesanan daring (pesanan +25%, komisi 20% dari pesanan daring)</label>` : '<p class="small muted">Daftarkan usaha di halaman Pengembangan.</p>'}</section>
+    </div>`;
+  }
+  function vUang() {
+    const ms = S.months.slice(-5).concat([Object.assign({ now: true }, S.cur)]);
+    const cats = [['rev', 'Penjualan', 1], ['royalty', 'Waralaba', 1], ['cogs', 'Bahan terpakai', -1], ['waste', 'Bahan basi', -1], ['wages', 'Gaji & THR', -1], ['rent', 'Sewa', -1],
+      ['ops', 'Listrik, air, operasional', -1], ['mkt', 'Pemasaran', -1], ['fee', 'Komisi & selisih kas', -1], ['interest', 'Bunga & denda', -1], ['tax', 'Pajak', -1], ['owner', 'Biaya hidup pemilik', -1], ['other', 'Lain-lain', -1]];
+    const head = ms.map(m => `<th class="n">${m.now ? 'Bulan ini' : esc(E.BULAN[m.m - 1].slice(0, 3)) + ' th-' + m.y}</th>`).join('');
+    const body = cats.filter(c => ms.some(m => Math.abs(m[c[0]] || 0) > 0.5)).map(c => `<tr><td>${c[1]}</td>${ms.map(m => `<td class="n">${jt((m[c[0]] || 0) * c[2])}</td>`).join('')}</tr>`).join('');
+    const tot = `<tr class="total"><td>Laba bersih</td>${ms.map(m => { const p = E.monthProfit(m); return `<td class="n ${p >= 0 ? 'good' : 'bad'}">${jt(p)}</td>`; }).join('')}</tr>
+      <tr><td class="muted">Investasi (outlet, alat, riset)</td>${ms.map(m => `<td class="n muted">${jt(m.capex || 0)}</td>`).join('')}</tr>`;
+    const L = E.LOAN[draft.loanType], lim = E.loanLimit(S, draft.loanType), r = L.rate / 12;
+    const amt = Math.min(draft.loanAmt * JT, lim), pay = amt > 0 ? Math.round(amt * r / (1 - Math.pow(1 + r, -draft.loanMonths))) : 0;
+    const loans = S.loans.map((l, i) => `<tr><td>${esc(E.LOAN[l.type].n)}</td><td class="n">${rp(l.bal)}</td><td class="n">${rp(l.pay)}/bln</td><td class="n">${l.left} bln lagi</td><td><button class="mini" data-act="repay" data-i="${i}" ${S.cash < l.bal ? 'disabled' : ''}>Lunasi</button></td></tr>`).join('');
+    const y12 = S.months.slice(-12).reduce((a, m) => a + m.rev, 0);
+    return `<div class="wrap"><h2>Keuangan</h2>
+      <div class="grid">
+        <section class="card"><header><h3>Posisi usaha</h3></header><dl class="kv">
+          <dt>Kas</dt><dd>${rp(S.cash)}</dd><dt>Nilai stok bahan</dt><dd>${rp(E.stockValue(S))}</dd><dt>Total utang</dt><dd>${rp(E.debt(S))}</dd>
+          <dt>Valuasi usaha (milik Anda ${pct(1 - S.equity)})</dt><dd><b>${jt(E.valuation(S))}</b></dd></dl>
+          <p class="small muted">Valuasi = aset bersih + 24 kali rata-rata laba tiga bulan terakhir.</p></section>
+        <section class="card"><header><h3>Pajak</h3><span class="chip">${S.bigTax ? 'Pajak badan 22% laba' : 'PPh final UMKM 0,5%'}</span></header><dl class="kv">
+          <dt>Omzet tahun berjalan</dt><dd>${jt(S.ytdRev + S.cur.rev)}</dd><dt>Bebas pajak sampai</dt><dd>${jt(E.TAX_FREE)}</dd>
+          <dt>Omzet 12 bulan terakhir</dt><dd>${jt(y12)}</dd><dt>Batas skema UMKM</dt><dd>${jt(E.UMKM_MAX)}</dd><dt>Terutang tanggal 15</dt><dd>${rp(S.taxDue)}</dd></dl>
+          <p class="small muted">Omzet sampai Rp 500 juta setahun bebas pajak. Di atasnya kena 0,5% dari omzet. Lewat Rp 4,8 miliar, pajak menjadi 22% dari laba.</p></section>
+      </div>
+      <section class="card"><header><h3>Laba rugi bulanan</h3></header><div class="tablewrap"><table><thead><tr><th></th>${head}</tr></thead><tbody>${body}${tot}</tbody></table></div></section>
+      <section class="card"><header><h3>Pinjaman</h3></header>
+        ${loans ? `<div class="tablewrap"><table><thead><tr><th>Jenis</th><th class="n">Sisa pokok</th><th class="n">Cicilan</th><th class="n">Tenor</th><th></th></tr></thead><tbody>${loans}</tbody></table></div>` : '<p class="muted small">Belum ada pinjaman.</p>'}
+        <div class="row">
+          <label for="loan-type">Jenis</label><select id="loan-type" data-chg="loantype">${Object.keys(E.LOAN).map(k => `<option value="${k}" ${draft.loanType === k ? 'selected' : ''}>${esc(E.LOAN[k].n)}</option>`).join('')}</select>
+          <label for="loan-amt">Jumlah (juta)</label><input type="number" id="loan-amt" min="1" step="1" value="${draft.loanAmt}" data-chg="loanamt">
+          <label for="loan-mo">Tenor</label><select id="loan-mo" data-chg="loanmo">${[12, 24, 36].map(m => `<option value="${m}" ${draft.loanMonths === m ? 'selected' : ''}>${m} bulan</option>`).join('')}</select>
+          <button class="primary" data-act="loan" ${amt >= JT ? '' : 'disabled'}>Ajukan ${jt(amt)}</button></div>
+        <p class="small muted">${esc(L.d)} Plafon tersedia sekarang: <b>${jt(lim)}</b>.${amt >= JT ? ' Cicilan ' + rp(pay) + ' tiap tanggal 5.' : ''}</p></section>
+    </div>`;
+  }
+  function vRiset() {
+    const cards = Object.keys(E.RES).map(id => {
+      const r = E.RES[id], why = E.canResearch(S, id), cost = Math.round(r.cost * S.infl), have = S.research[id];
+      return `<section class="card"><header><h3>${esc(r.n)}</h3>${have ? '<span class="chip good">Dimiliki</span>' : `<span class="num">${rp(cost)}</span>`}</header>
+        <p class="small muted">${esc(r.d)}</p>
+        ${have ? '' : `<button data-act="research" data-id="${id}" ${why || S.cash < cost ? 'disabled' : ''}>${why || (S.cash < cost ? 'Kas belum cukup' : 'Ambil')}</button>`}</section>`;
+    }).join('');
+    const fr = S.franchise.map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.kota)}</td><td class="n">hari ${f.since}</td><td><span class="chip ${f.q > 0.7 ? 'good' : f.q > 0.5 ? '' : 'bad'}">${f.q > 0.7 ? 'Teladan' : f.q > 0.5 ? 'Patuh SOP' : 'Bermasalah'}</span></td></tr>`).join('');
+    return `<div class="wrap"><h2>Pengembangan</h2><div class="grid">${cards}</div>
+      <section class="card"><header><h3>Mitra waralaba</h3><span class="small muted">Royalti 5% dari omzet tiap gerai mitra</span></header>
+        ${fr ? `<div class="tablewrap"><table><thead><tr><th>Mitra</th><th>Kota</th><th class="n">Bergabung</th><th>Kondisi</th></tr></thead><tbody>${fr}</tbody></table></div>` :
+      '<p class="small muted">Setelah punya tiga outlet, reputasi 70, dan SOP waralaba, calon mitra akan datang menawarkan diri. Pilih mitra dengan cermat: mitra yang buruk merusak reputasi merek.</p>'}</section></div>`;
+  }
+  function vCatatan() {
+    const goals = E.GOALS.map(g => `<li class="${S.goals[g.id] ? 'done' : ''}"><span class="box"></span><span>${esc(g.n)}${S.goals[g.id] ? ' <span class="small">· hari ke-' + S.goals[g.id] + '</span>' : ''}</span></li>`).join('');
+    return `<div class="wrap"><h2>Pencapaian & simpanan</h2><div class="grid">
+      <section class="card"><header><h3>Tangga usaha</h3></header><ul class="goals">${goals}</ul>
+        <p class="small muted">Tidak ada batas waktu. Setelah valuasi Rp 5 miliar tercapai, permainan tetap bisa dilanjutkan.</p></section>
+      <section class="card"><header><h3>Simpanan</h3></header>
+        <p class="small" id="savestat">${esc(cloud.status)}</p>
+        <p class="small muted">Permainan disimpan otomatis tiap hari berjalan. Untuk cadangan atau pindah perangkat, salin teks simpanan di bawah, lalu tempel di perangkat lain.</p>
+        <textarea id="io" rows="4" data-chg="io" aria-label="Teks simpanan" placeholder="Tempel teks simpanan di sini untuk memuat"></textarea>
+        <div class="row"><button data-act="export">Salin simpanan</button><button data-act="import">Muat dari teks</button><button class="ghost" data-act="asknew">Mulai usaha baru</button></div></section>
+    </div><section class="card"><header><h3>Buku catatan</h3></header>${logList(80)}</section></div>`;
+  }
+  const VIEWS = { ringkasan: vRingkasan, menu: vMenu, stok: vStok, outlet: vOutlet, pasar: vPasar, uang: vUang, riset: vRiset, catatan: vCatatan };
+
+  function vStart() {
+    return `<div class="start">
+      <p class="chip" style="align-self:flex-start">Simulasi bisnis · giliran harian</p>
+      <h1>Kedai Rintisan</h1>
+      <p class="lede">Anda punya satu warung kopi di mulut gang dan tabungan secukupnya. Atur harga, belanja bahan sebelum basi, gaji barista, hadapi musim hujan, Ramadan, THR, pajak, dan cicilan. Tumbuhkan warung itu menjadi jaringan waralaba senilai Rp 5 miliar.</p>
+      <div class="struk" style="max-width:340px"><h3>Struk pembuka</h3><hr>
+        <div class="l"><span>1 warung, Gang Kampung</span><b>milik Anda</b></div><div class="l"><span>Bahan untuk 3 hari</span><b>tersedia</b></div>
+        <div class="l"><span>Sewa per bulan</span><b>Rp 1.500.000</b></div><div class="l"><span>Biaya hidup per bulan</span><b>Rp 3.000.000</b></div><hr><p class="c">Tidak ada batas waktu.</p></div>
+      <form id="newgame" class="wrap" style="gap:12px">
+        <label for="brand">Nama usaha Anda</label>
+        <input id="brand" maxlength="28" value="Kopi Tanjakan" style="max-width:340px;font-size:17px">
+        <div class="modes" role="radiogroup" aria-label="Tingkat kesulitan">
+          <label><input type="radio" name="mode" id="mode-r" value="realistis" checked><b>Realistis</b><span class="small muted">Modal Rp 15 juta. Kas minus 14 hari berturut-turut berarti bangkrut.</span></label>
+          <label><input type="radio" name="mode" id="mode-s" value="santai"><b>Santai</b><span class="small muted">Modal Rp 25 juta, kejadian lebih jarang, batas kas minus 30 hari.</span></label>
+        </div>
+        <div class="row"><button class="primary" type="submit" style="padding:10px 20px;font-size:16px">Buka warung</button>
+          ${loadLocal() ? '<button type="button" data-act="continue">Lanjutkan simpanan</button>' : ''}</div>
+      </form></div>`;
+  }
+
+  /* ---------- Render ---------- */
+  function render() {
+    const app = $('#app');
+    if (!S) { app.style.display = 'block'; app.innerHTML = vStart(); renderDialog(); return; }
+    app.style.display = '';
+    const c = E.cal(S.day), tags = E.seasonTags(S.day), canSkip = S.auto.on && S.research.r_supplier;
+    const lastM = S.months[S.months.length - 1];
+    const focus = document.activeElement && document.activeElement.id, main = $('main'), sc = main ? main.scrollTop : 0;
+    app.innerHTML = `<header class="top">
+      <div class="brand">${esc(S.brand)}<small>${esc(E.dateStr(S.day))} · hari ke-${S.day}</small></div>
+      <div class="kpis">
+        <div class="kpi"><b class="${S.cash < 0 ? 'bad' : ''}">${rp(S.cash)}</b><span>Kas</span></div>
+        <div class="kpi"><b class="${tone(S.rep, 40, 65)}">${Math.round(S.rep)}<span class="small muted" style="font-size:12px"> /100</span></b><span>Reputasi</span></div>
+        <div class="kpi"><b>${lastM ? jt(E.monthProfit(lastM)) : '–'}</b><span>Laba bulan lalu</span></div>
+        <div class="kpi"><b>${esc(E.WX[S.wx])}</b><span>Cuaca hari ini · besok ${esc(E.WX[S.wxFc].toLowerCase())}</span></div>
+        ${tags.map(t => `<span class="chip" style="align-self:center">${esc(t)}</span>`).join('')}
+      </div>
+      <div class="go"><button data-act="skip" ${canSkip ? '' : 'disabled'} title="${canSkip ? 'Berhenti otomatis bila ada kejadian' : 'Butuh pemasok langganan aktif'}">Lompat 7 hari</button>
+        <button class="primary" data-act="next" id="next">Jalankan hari ▸</button></div>
+    </header>
+    <nav class="side" aria-label="Halaman">${TABS.map(([id, n]) => `<button data-act="tab" data-id="${id}" ${tab === id ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
+      <div class="foot">Mode ${esc(S.mode)}<br>${S.outlets.length} outlet · ${S.franchise.length} mitra<br>Tombol spasi: jalankan hari</div></nav>
+    <main id="view">${VIEWS[tab]()}</main>`;
+    $('main').scrollTop = sc;
+    if (focus) { const el = document.getElementById(focus); if (el) el.focus(); }
+    renderDialog();
+  }
+  function renderDialog() {
+    const m = $('#modal');
+    if (!dialog && S && S.pending) {
+      const ev = E.buildEvent(S);
+      if (ev) dialog = { eyebrow: 'Kejadian · hari ke-' + S.day, title: ev.title, text: ev.text,
+        choices: ev.choices.map((c, i) => ({ label: c.label, hint: c.hint || '', dis: c.can && !c.can(S), act: 'choice', i })) };
+      else S.pending = null;
+    }
+    if (!dialog) { m.classList.remove('on'); m.innerHTML = ''; return; }
+    m.classList.add('on');
+    m.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t">
+      <span class="eyebrow">${esc(dialog.eyebrow || '')}</span><h2 id="dlg-t">${esc(dialog.title)}</h2><p>${esc(dialog.text)}</p>
+      <div class="choices">${dialog.choices.map(c => `<button data-act="${c.act}" data-i="${c.i != null ? c.i : ''}" ${c.dis ? 'disabled' : ''} ${c.primary ? 'class="primary"' : ''}><b>${esc(c.label)}</b><span>${esc(c.hint || '')}</span></button>`).join('')}</div></div>`;
+    const b = m.querySelector('button:not(:disabled)'); if (b) b.focus();
+  }
+  function info(eyebrow, title, text, then) {
+    dialog = { eyebrow, title, text, choices: [{ label: 'Lanjut', act: 'close', primary: true }] }; dialog.then = then;
+  }
+
+  /* ---------- Aksi ---------- */
+  function done(r) { if (r && r.msg) toast(r.msg); save(); render(); }
+  function afterDay() {
+    if (S.over) { dialog = { eyebrow: 'Hari ke-' + S.day, title: 'Usaha bangkrut', text: 'Kas minus terlalu lama dan para penagih menutup warung. ' + S.brand + ' bertahan ' + (S.day - 1) + ' hari dengan ' + S.outlets.length + ' outlet. Tiap pengusaha punya cerita gagal pertama.',
+      choices: [{ label: 'Mulai usaha baru', act: 'newgame', primary: true }, { label: 'Lihat pembukuan terakhir', act: 'close' }] }; }
+    else if (S.flags.justWon) { delete S.flags.justWon; info('Pencapaian puncak', 'Valuasi Rp 5 miliar', S.brand + ' kini bernilai lebih dari Rp 5 miliar, dibangun dari satu warung di mulut gang dalam ' + (S.day - 1) + ' hari. Anda boleh terus bermain selama yang Anda mau.'); }
+  }
+  function nextDay(n) {
+    if (!S || S.over || S.pending || dialog) return;
+    let r = null, i = 0;
+    for (; i < n; i++) { r = E.runDay(S); if (!r || S.pending || S.over || S.cash < 0 || S.flags.justWon) { i++; break; } }
+    afterDay();
+    if (r && !dialog) toast(n > 1 ? i + ' hari berlalu. Kas ' + rp(S.cash) + '.' : 'Hari ke-' + r.day + ' selesai. Laba ' + rp(r.profit) + '.');
+    draft.buy = {};
+    save(); render();
+  }
+  const ACT = {
+    tab: d => { tab = d.id; render(); $('main').scrollTop = 0; },
+    next: () => nextDay(1),
+    skip: () => nextDay(7),
+    price: d => { E.setPrice(S, d.k, S.prices[d.k] + +d.d); done(); },
+    fill: d => { draft.buy[d.k] = coverQty(d.k, +d.d); render(); },
+    buy: d => { const q = draft.buy[d.k] != null ? draft.buy[d.k] : coverQty(d.k, 3); const r = E.buy(S, d.k, q); if (r.ok) delete draft.buy[d.k]; done(r); },
+    buyall: () => { let n = 0; for (const k in E.ING) { const q = coverQty(k, 3); if (q > 0 && E.buy(S, k, q).ok) n++; } draft.buy = {}; done({ msg: n ? 'Belanja selesai, ' + n + ' jenis bahan dibeli.' : 'Stok masih cukup.' }); },
+    hire: d => done(E.hire(S, +d.id)), fire: d => done(E.fire(S, +d.id)),
+    equip: d => done(E.upgradeEquip(S, +d.id)), dekor: d => done(E.upgradeDekor(S, +d.id)),
+    open: d => { const L = E.LOCS[d.loc]; dialog = { eyebrow: 'Ekspansi', title: 'Buka outlet di ' + L.n + '?', text: 'Biaya buka ' + rp(E.setupCost(S, d.loc)) + '. Outlet baru langsung menambah gaji kepala toko dan satu barista, sementara pelanggan baru berdatangan pelan-pelan.',
+      choices: [{ label: 'Ya, buka', act: 'open2', i: d.loc, primary: true }, { label: 'Batal', act: 'close' }] }; renderDialog(); },
+    open2: d => { dialog = null; done(E.openOutlet(S, d.i)); },
+    askclose: d => { dialog = { eyebrow: 'Outlet', title: 'Tutup outlet ini?', text: 'Peralatan dijual seharga 20% biaya buka. Keputusan ini tidak bisa dibatalkan.', choices: [{ label: 'Tutup outlet', act: 'close2', i: d.id }, { label: 'Batal', act: 'close', primary: true }] }; renderDialog(); },
+    close2: d => { dialog = null; done(E.closeOutlet(S, +d.i)); },
+    train: () => done(E.train(S)),
+    camp: d => done(E.campaign(S, d.id)),
+    research: d => done(E.research(S, d.id)),
+    loan: () => done(E.takeLoan(S, draft.loanType, Math.min(draft.loanAmt * JT, E.loanLimit(S, draft.loanType)), draft.loanMonths)),
+    repay: d => done(E.repayLoan(S, +d.i)),
+    choice: d => { const ev = E.buildEvent(S), title = ev ? ev.title : ''; const r = E.resolveEvent(S, +d.i); if (!r.ok) { toast(r.msg); return; } dialog = null; info('Hasil', title, r.msg); save(); render(); },
+    close: () => { const t = dialog && dialog.then; dialog = null; if (t) t(); render(); },
+    export: async () => { const txt = JSON.stringify(S); draft.io = txt; const el = $('#io'); if (el) { el.value = txt; el.select(); }
+      try { await navigator.clipboard.writeText(txt); toast('Teks simpanan disalin.'); } catch (e) { toast('Teks simpanan ada di kotak. Salin manual dengan Ctrl+C.'); } },
+    import: () => { try { const st = valid(JSON.parse(($('#io').value || '').trim())); if (!st) throw 0; S = st; dialog = null; tab = 'ringkasan'; done({ msg: 'Simpanan dimuat: hari ke-' + S.day + '.' }); } catch (e) { toast('Teks simpanan tidak bisa dibaca. Pastikan tersalin utuh.'); } },
+    asknew: () => { dialog = { eyebrow: 'Simpanan', title: 'Mulai usaha baru?', text: 'Simpanan yang sekarang akan tertimpa saat usaha baru dibuka.', choices: [{ label: 'Ya, mulai baru', act: 'newgame' }, { label: 'Batal', act: 'close', primary: true }] }; renderDialog(); },
+    newgame: () => { dialog = null; S = null; render(); },
+    continue: () => { S = loadLocal(); render(); },
+  };
+  const CHG = {
+    price: (el, d) => { E.setPrice(S, d.k, +el.value || S.prices[d.k]); done(); },
+    active: (el, d) => { S.active[d.k] = el.checked; done(); },
+    buyqty: (el, d) => { draft.buy[d.k] = Math.max(0, +el.value || 0); render(); },
+    grade: el => { S.grade = +el.value; done({ msg: 'Pembelian kopi berikutnya memakai ' + E.GRADES[S.grade].n + '.' }); },
+    auto: el => { S.auto.on = el.checked; done(); },
+    autodays: el => { S.auto.days = +el.value; done(); },
+    adj: (el, d) => { S.outlets.find(o => o.id === +d.id).adj = +el.value; done(); },
+    wage: el => { S.wagePct = +el.value; done(); },
+    ojol: el => { S.ojol = el.checked; done(); },
+    loantype: el => { draft.loanType = el.value; render(); },
+    loanamt: el => { draft.loanAmt = Math.max(1, Math.floor(+el.value || 1)); render(); },
+    loanmo: el => { draft.loanMonths = +el.value; render(); },
+    io: el => { draft.io = el.value; },
+  };
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-act]');
+    if (!b || b.disabled) return;
+    const f = ACT[b.dataset.act]; if (f) f(b.dataset);
+  });
+  document.addEventListener('change', e => {
+    const el = e.target.closest('[data-chg]');
+    if (!el) return;
+    const f = CHG[el.dataset.chg]; if (f) f(el, el.dataset);
+  });
+  document.addEventListener('submit', e => {
+    e.preventDefault();
+    if (e.target.id !== 'newgame') return;
+    S = E.newGame({ brand: $('#brand').value.trim() || 'Kedai Rintisan', mode: $('#mode-s').checked ? 'santai' : 'realistis' });
+    tab = 'ringkasan'; save(); render();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.code !== 'Space' || !S || dialog) return;
+    const t = e.target.tagName;
+    if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || t === 'BUTTON') return;
+    e.preventDefault(); nextDay(1);
+  });
+
+  /* ---------- Mulai ---------- */
+  function start(data) {
+    S = valid(data && data.S) || loadLocal();
+    if (data && data.tab && VIEWS[data.tab]) tab = data.tab;
+    render();
+    initCloud();
+  }
+  const hot = window.claude && window.claude.hot;
+  if (hot && hot.snapshot) hot.snapshot(() => ({ S, tab }));
+  if (hot && hot.ready) hot.ready(start); else start((hot && hot.data) || {});
+})();
+
+</script>
+</body>
+</html>

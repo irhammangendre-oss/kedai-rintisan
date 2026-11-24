@@ -27,7 +27,7 @@ Game simulasi bisnis berbasis giliran harian: pemain menumbuhkan satu warung kop
 
 ## Jangan diubah tanpa izin
 - Format simpanan (`VERSION` di engine.js): mengubah bentuk state tanpa migrasi membuat simpanan pemain tidak terbaca.
-- Angka keseimbangan di engine.js: setiap perubahan harus dicek ulang dengan `node test/sim.js`. Sasaran: bot pasif bertahan tipis, bot wajar buka cabang kedua sekitar hari 300 dan mencapai valuasi Rp 5 miliar di tahun ketiga.
+- Angka keseimbangan di engine.js: setiap perubahan harus dicek ulang dengan `node test/sim.js`. Sasaran: bot pasif bertahan tipis, bot wajar buka cabang kedua sekitar hari 400 dan mencapai valuasi Rp 5 miliar di tahun ketiga.
 
 ## Cara kerja di repo ini
 - Bahasa antarmuka dan komunikasi: Indonesia

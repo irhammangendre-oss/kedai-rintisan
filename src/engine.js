@@ -218,9 +218,29 @@ const Engine = (() => {
     for (const o of s.outlets) n += o.staff + (o.own ? 0 : 1.5);
     return n * wage(s);
   }
+  /* Racikan per outlet: persen takaran kopi, susu, gula. Selera tiap lokasi berbeda dan tidak ditampilkan; pemain menebaknya dari komentar. */
+  const IDEAL = { gang: [100, 100, 120], pasar: [110, 100, 120], kampus: [100, 110, 110], kantor: [120, 100, 80], wisata: [100, 110, 100], mall: [110, 120, 100] };
+  const mixOf = o => o.mix || { kopi: 100, susu: 100, gula: 100 };
+  const mf = (o, i) => (i === 'kopi' || i === 'susu' || i === 'gula') ? mixOf(o)[i] / 100 : 1;
+  function tasteDev(s, o) {
+    const I = IDEAL[o.loc], m = mixOf(o);
+    return { kopi: m.kopi - I[0] - (s.wx === 'hujan' ? 10 : 0), susu: m.susu - I[1] - (s.wx === 'terik' ? 10 : 0), gula: m.gula - I[2] };
+  }
+  function taste(s, o) { const d = tasteDev(s, o); return clamp(5.5 - 0.2 * (Math.abs(d.kopi) + Math.abs(d.susu) + Math.abs(d.gula)), -10, 5); }
+  function comments(fb) {
+    const buy = [], lost = [], d = fb.dev, add = (txt, w) => { for (let i = 0; i < Math.max(1, Math.round(w)); i++) buy.push(txt); };
+    if (d.kopi <= -10) add('Kopinya kurang nendang', -d.kopi / 10); if (d.kopi >= 10) add('Terlalu pahit', d.kopi / 10);
+    if (d.susu <= -10) add('Kurang susu', -d.susu / 10); if (d.susu >= 10) add('Kebanyakan susu', d.susu / 10);
+    if (d.gula <= -10) add('Kurang manis', -d.gula / 10); if (d.gula >= 10) add('Kemanisan', d.gula / 10);
+    if (fb.ratio > 1.08) add('Kemahalan', (fb.ratio - 1) * 25); else if (fb.ratio < 0.9) add('Murah banget!', 2);
+    const off = Math.abs(d.kopi) + Math.abs(d.susu) + Math.abs(d.gula);
+    if (off === 0 && fb.ratio <= 1.05) add('Pas banget!', 4); else if (off <= 10) add('Enak!', 2); else if (!buy.length) add('Lumayan', 1);
+    if (fb.lostFrac > 0.03) lost.push(fb.short ? 'Yah, habis' : 'Antrenya lama');
+    return { buy, lost };
+  }
   function quality(s, o) {
     return clamp(34 + beanQ(s) + o.equip * 5 + s.training * 4 + o.dekor * 3 + (o.morale - 50) * 0.12 +
-      (s.research.r_roastery ? 4 : 0) + (s.research.r_cert ? 3 : 0), 0, 100);
+      (s.research.r_roastery ? 4 : 0) + (s.research.r_cert ? 3 : 0) + taste(s, o), 0, 100);
   }
   function capacity(s, o) {
     const staffCap = (o.own ? 70 : 0) + o.staff * 58 * (1 + 0.08 * s.training) * (0.75 + 0.5 * o.morale / 100);
@@ -272,7 +292,7 @@ const Engine = (() => {
     for (const k in ING) need[k] = 0;
     for (const o of s.outlets) {
       const d = demand(s, o, 1), sc = d.total > 0 ? Math.min(1, capacity(s, o) / d.total) : 0;
-      for (const k in d.units) for (const i in MENU[k].r) need[i] += d.units[k] * sc * MENU[k].r[i];
+      for (const k in d.units) for (const i in MENU[k].r) need[i] += d.units[k] * sc * MENU[k].r[i] * mf(o, i);
     }
     return need;
   }
@@ -764,7 +784,7 @@ const Engine = (() => {
       const want = {};
       for (const k in d.units) {
         want[k] = d.units[k] * sc;
-        for (const i in MENU[k].r) { need[i] += want[k] * MENU[k].r[i]; needRaw[i] += want[k] * MENU[k].r[i]; }
+        for (const i in MENU[k].r) { need[i] += want[k] * MENU[k].r[i] * mf(o, i); needRaw[i] += want[k] * MENU[k].r[i] * mf(o, i); }
       }
       rows.push({ o, d, cap, want });
     }
@@ -774,17 +794,17 @@ const Engine = (() => {
     const sold = {}, short = {};
     for (const row of rows) {
       const { o, d, cap, want } = row;
-      let oRev = 0, oServed = 0;
+      let oRev = 0, oServed = 0, oShort = false;
       for (const k in want) {
         let f = 1;
         for (const i in MENU[k].r) if (avail[i] < f) { f = avail[i]; }
-        if (f < 0.98) for (const i in MENU[k].r) if (avail[i] < 0.98) short[i] = true;
+        if (f < 0.98) for (const i in MENU[k].r) if (avail[i] < 0.98) { short[i] = true; oShort = true; }
         const n = Math.floor(want[k] * f + rnd(s) * 0.999);
         if (n <= 0) continue;
         let got = n;
-        for (const i in MENU[k].r) got = Math.min(got, Math.floor(stockQty(s, i) / MENU[k].r[i] + 1e-6));
+        for (const i in MENU[k].r) got = Math.min(got, Math.floor(stockQty(s, i) / (MENU[k].r[i] * mf(o, i)) + 1e-6));
         if (got <= 0) continue;
-        for (const i in MENU[k].r) cogs += consume(s, i, MENU[k].r[i] * got);
+        for (const i in MENU[k].r) cogs += consume(s, i, MENU[k].r[i] * mf(o, i) * got);
         const price = R(s.prices[k] * (1 + o.adj / 100) / 500) * 500;
         oRev += got * price; oServed += got; sold[k] = (sold[k] || 0) + got;
       }
@@ -800,7 +820,8 @@ const Engine = (() => {
       o.morale = clamp(o.morale + (mTarget - o.morale) * 0.15, 5, 100);
       o.known = Math.min(1, o.known + 0.02 + 0.02 * s.buzz);
       if (o.comp > 0 && s.rep > 70 && rnd(s) < 0.012) o.comp--;
-      o.last = { vis: R(d.vis), demand: R(d.total), served: oServed, lost: R(oLost), rev: oRev, util, cap: R(cap), closed: o.closed > 0, sat: R(sat) };
+      o.last = { vis: R(d.vis), demand: R(d.total), served: oServed, lost: R(oLost), rev: oRev, util, cap: R(cap), closed: o.closed > 0, sat: R(sat),
+        says: comments({ dev: tasteDev(s, o), ratio: d.ratio, lostFrac, short: oShort }) };
       if (o.closed > 0) o.closed--;
       if (o.broken > 0) o.broken--;
       rev += oRev; served += oServed; lost += oLost; fee += oFee; share += oRev * (LOCS[o.loc].share || 0);
@@ -888,7 +909,7 @@ const Engine = (() => {
 
     const profit = rev + royalty - cogs - waste - w - fee - ops - s.outlets.reduce((a, o) => a + rent(s, o), 0) / 30;
     const report = { day: s.day, wx: s.wx, rev, cogs, waste, wages: w, fee, ops, royalty, served, lost: R(lost), profit, bills, notes, sold,
-      out: rows.map(x => ({ id: x.o.id, loc: x.o.loc, served: x.o.last.served, lost: x.o.last.lost, vis: x.o.last.vis, closed: x.o.last.closed })),
+      out: rows.map(x => ({ id: x.o.id, loc: x.o.loc, served: x.o.last.served, lost: x.o.last.lost, vis: x.o.last.vis, closed: x.o.last.closed, says: x.o.last.says })),
       cashDelta: s.cash - cashStart, tags: seasonTags(s.day) };
     s.last = report;
     s.hist.push({ d: s.day, rev, profit: R(profit), cash: R(s.cash), rep: R(s.rep * 10) / 10, cust: served });
@@ -924,7 +945,7 @@ const Engine = (() => {
 
   return { VERSION, JT, ING, GRADES, MENU, LOCS, EQUIP, DEKOR, TRAIN, RES, CAMP, LOAN, GOALS, WX, HARI, BULAN, TAX_FREE, UMKM_MAX, hqCost,
     newGame, runDay, cal, dateStr, seasonTags, rp, stockQty, stockValue, shelf, unitPrice, quoteBuy, itemCost, unlocked, wage, dailyWages,
-    quality, capacity, rent, opsCost, wtpOf, demand, forecastNeeds, debt, rev30, loanLimit, valuation, upcoming, monthProfit,
+    quality, capacity, rent, opsCost, wtpOf, mixOf, taste, demand, forecastNeeds, debt, rev30, loanLimit, valuation, upcoming, monthProfit,
     buy, setPrice, hire, fire, upgradeEquip, upgradeDekor, setupCost, openOutlet, closeOutlet, trainCost, train, canResearch, research,
     campCost, campaign, takeLoan, repayLoan, buildEvent, resolveEvent, checkGoals };
 })();

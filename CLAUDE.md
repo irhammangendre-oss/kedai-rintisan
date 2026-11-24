@@ -12,6 +12,8 @@ Game simulasi bisnis berbasis giliran harian: pemain menumbuhkan satu warung kop
 - THR = 30 hari gaji, dibayar 20 Maret. Gaji dibayar tiap Sabtu, sewa tanggal 1, cicilan tanggal 5, biaya hidup pemilik Rp 3 juta tanggal 25.
 - Bangkrut bila kas minus 14 hari berturut-turut (30 hari di mode Santai).
 - "Harga wajar" = harga acuan menu × faktor lokasi × inflasi × (1 + (kualitas − 40)/200).
+- Racikan per outlet (kopi, susu, gula; 70–140%, langkah 10): selera ideal tiap lokasi ada di `IDEAL` (engine.js) dan sengaja tidak ditampilkan ke pemain. Bonus kualitas = 5,5 − 0,2 × total selisih persen, dibatasi −10 sampai +5. Hujan menggeser ideal kopi +10, terik menggeser ideal susu +10. Contoh: Gang Kampung idealnya 100/100/120, jadi racikan standar 100/100/100 selisihnya 20 → bonus +1,5.
+- Arah desain: mekanik genre kios minuman (racikan, komentar pelanggan, cuaca) boleh dipakai, tetapi jangan meniru nama, gambar, tampilan, atau musik game lain.
 
 ## Stack dan cara menjalankan
 - Stack: HTML + CSS + JavaScript murni. Hasil akhir satu berkas `index.html`. Library gerak dimuat dari CDN dan semuanya opsional (game tetap jalan tanpa internet): GSAP 3.12.5 + ScrollTrigger, Motion 12.23.24, Lenis 1.1.20.

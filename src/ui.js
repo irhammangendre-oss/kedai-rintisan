@@ -139,7 +139,7 @@
     const bills = E.upcoming(S).filter(b => b.d <= 3 && b.amt > Math.max(0, S.cash));
     for (const b of bills) a.push(['bad', b.n + ' ' + rp(b.amt) + ' jatuh tempo ' + (b.d === 0 ? 'hari ini' : b.d + ' hari lagi') + ', kas belum cukup.']);
     if (S.flags.deal) a.push(['good', 'Tawaran tempat: buka di ' + E.LOCS[S.flags.deal].n + ' diskon 30%, sisa ' + S.flags.dealDays + ' hari.']);
-    if (S.day <= 3) a.push(['info', 'Mulai dari sini: cek harga di Menu, belanja bahan di Stok, lalu tekan "Jalankan hari". Harga wajar di tiap lokasi berbeda.']);
+    if (S.day <= 3) a.push(['info', 'Mulai dari sini: cek harga di Menu, belanja bahan di Stok, lalu tekan "Jalankan hari". Perhatikan komentar pelanggan, lalu setel racikan di halaman Outlet.']);
     return a.map(([k, t]) => `<div class="alert ${k}">${esc(t)}</div>`).join('');
   }
   function struk() {
@@ -241,6 +241,13 @@
       : '<p class="small muted">Dengan kontrak pemasok (halaman Pengembangan), bahan dikirim otomatis dan Anda bisa melompat 7 hari sekaligus.</p>'}</section>
       </div></div>`;
   }
+  function says(o) {
+    const sy = o.last && o.last.says;
+    if (!sy) return '<p class="small muted">Komentar pelanggan muncul setelah outlet ini melewati satu hari.</p>';
+    const count = {}; for (const x of sy.buy.concat(sy.lost)) count[x] = (count[x] || 0) + 1;
+    const top = Object.keys(count).sort((a, b) => count[b] - count[a]).slice(0, 4);
+    return `<div class="row" style="gap:6px"><span class="small muted">Kata pelanggan kemarin:</span>${top.map(x => `<span class="chip ${/Pas|Enak|Murah/.test(x) ? 'good' : /Lumayan/.test(x) ? '' : 'warn'}">${esc(x)}</span>`).join('')}</div>`;
+  }
   function vOutlet() {
     const cards = S.outlets.map(o => {
       const L = E.LOCS[o.loc], cap = Math.round(E.capacity(S, o)), q = Math.round(E.quality(S, o)), x = o.last, min = o.own ? 0 : 1;
@@ -262,6 +269,9 @@
         <div class="row spread"><span>Dekor: <b>${esc(E.DEKOR[o.dekor].n)}</b></span>
           ${dk ? `<button class="mini" data-act="dekor" data-id="${o.id}" ${S.cash < dk.cost * S.infl ? 'disabled' : ''}>${esc(dk.n)} · ${jt(dk.cost * S.infl)}</button>` : '<span class="chip good">Maksimal</span>'}</div>
         <label class="row spread" for="adj-${o.id}"><span>Penyesuaian harga di sini</span><select id="adj-${o.id}" data-chg="adj" data-id="${o.id}">${[-20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 40, 50, 60, 70].map(a => `<option value="${a}" ${o.adj === a ? 'selected' : ''}>${a > 0 ? '+' : ''}${a}%</option>`).join('')}</select></label>
+        <div class="mix"><div class="row spread"><b>Racikan di sini</b><span class="small muted">100% = takaran standar</span></div>
+          ${[['kopi', 'Kopi'], ['susu', 'Susu'], ['gula', 'Gula aren']].map(([k, n]) => `<label class="row" for="mix-${k}-${o.id}"><span class="mixn">${n}</span><input type="range" id="mix-${k}-${o.id}" min="70" max="140" step="10" value="${E.mixOf(o)[k]}" data-chg="mix" data-id="${o.id}" data-k="${k}"><b class="num">${E.mixOf(o)[k]}%</b></label>`).join('')}
+          ${says(o)}</div>
         ${o.own ? '' : `<div class="row"><button class="mini ghost" data-act="askclose" data-id="${o.id}">Tutup outlet ini</button></div>`}
       </section>`;
     }).join('');
@@ -285,6 +295,7 @@
         ${E.hqCost(S) > 0 ? `<p class="small muted">Kantor pusat (admin, akunting, penyelia) untuk ${S.outlets.length} outlet: ${rp(E.hqCost(S))}/bln.</p>` : ''}
       </section>
       <div class="grid">${cards}</div>
+      <p class="muted small" style="max-width:70ch">Selera tiap lokasi berbeda dan berubah sedikit mengikuti cuaca: saat hujan orang ingin kopi lebih kuat, saat terik lebih banyak susu. Dengarkan komentar pelanggan saat hari berjalan, lalu setel racikan. Racikan yang pas menaikkan kualitas sampai +5; yang meleset menurunkannya sampai -10. Takaran lebih besar berarti bahan lebih boros.</p>
       ${news ? `<h3>Lokasi yang bisa dibuka</h3><p class="muted small" style="max-width:70ch">Outlet baru butuh sekitar sebulan sampai dikenal. Pastikan ada cadangan kas untuk sewa dan gaji selama masa itu. Mulai outlet ketiga, ada biaya kantor pusat Rp 10 juta per outlet tambahan tiap bulan.</p><div class="grid">${news}</div>` : ''}
     </div>`;
   }
@@ -401,7 +412,7 @@
       <label for="anim" class="small">Animasi hari</label><select id="anim" data-chg="anim">${['penuh', 'cepat', 'mati'].map(a => `<option ${P.anim === a ? 'selected' : ''}>${a}</option>`).join('')}</select></div>`;
   }
   function sceneData() {
-    return { brand: S.brand, wx: S.wx, ojol: S.ojol, outlets: S.outlets.map(o => ({ loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0, served: o.last ? o.last.served : 20 })) };
+    return { brand: S.brand, wx: S.wx, ojol: S.ojol, outlets: S.outlets.map(o => ({ loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0, served: o.last ? o.last.served : 20, says: o.last && o.last.says })) };
   }
   function paint() {
     const st = $('#street');
@@ -494,7 +505,7 @@
       function startDay(ts) {
         di++; if (di >= days.length) return finish();
         const d = days[di], r = d.r;
-        sc.setData({ brand: S.brand, wx: r.wx, ojol: S.ojol, outlets: d.snap.map(o => { const x = r.out.find(q => q.id === o.id) || {}; return Object.assign({}, o, { closed: !!x.closed, served: x.served || 0, lost: x.lost || 0, vis: x.vis || 0 }); }) }, 'day', daySec);
+        sc.setData({ brand: S.brand, wx: r.wx, ojol: S.ojol, outlets: d.snap.map(o => { const x = r.out.find(q => q.id === o.id) || {}; return Object.assign({}, o, { closed: !!x.closed, served: x.served || 0, lost: x.lost || 0, vis: x.vis || 0, says: x.says }); }) }, 'day', daySec);
         $('#st-day').textContent = 'Hari ke-' + r.day + ' · ' + E.WX[r.wx] + (r.tags.length ? ' · ' + r.tags.join(', ') : '');
         $('#st-profit-box').style.visibility = 'hidden';
         t0 = ts; holdUntil = 0; Sound.sfx('bell');
@@ -578,6 +589,7 @@
     autodays: el => { S.auto.days = +el.value; done(); },
     adj: (el, d) => { S.outlets.find(o => o.id === +d.id).adj = +el.value; done(); },
     wage: el => { S.wagePct = +el.value; done(); },
+    mix: (el, d) => { const o = S.outlets.find(x => x.id === +d.id); o.mix = Object.assign({}, E.mixOf(o), { [d.k]: +el.value }); done(); },
     ojol: el => { S.ojol = el.checked; done(); },
     loantype: el => { draft.loanType = el.value; render(); },
     loanamt: el => { draft.loanAmt = Math.max(1, Math.floor(+el.value || 1)); render(); },

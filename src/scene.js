@@ -159,6 +159,16 @@ const Scene = (() => {
     c.fillStyle = p.hair; c.beginPath(); c.arc(x, y - 27.5 * s, 4.7 * s, Math.PI, 0); c.fill();
     if (p.cup) { c.fillStyle = '#fffdf6'; c.fillRect(x + p.dir * 5.5 * s - 1.8 * s, y - 18 * s, 3.8 * s, 5.5 * s); c.fillStyle = '#8a5a3c'; c.fillRect(x + p.dir * 5.5 * s - 1.8 * s, y - 16.4 * s, 3.8 * s, 1.6 * s); }
     if (rain) { c.fillStyle = p.umb; c.beginPath(); c.arc(x, y - 33 * s, 11 * s, Math.PI, 0); c.closePath(); c.fill(); c.strokeStyle = '#2d3138'; c.lineWidth = 1.2 * s; c.beginPath(); c.moveTo(x, y - 33 * s); c.lineTo(x, y - 20 * s); c.stroke(); }
+    if (p.say && p.sayT > 0) {
+      c.globalAlpha = clamp(p.alpha, 0, 1) * clamp(p.sayT * 4, 0, 1);
+      c.font = '600 ' + Math.round(clamp(11 * s, 10, 13)) + 'px "IBM Plex Sans",sans-serif'; c.textAlign = 'center';
+      const tw = c.measureText(p.say).width + 14, bh = 20, bx = clamp(x - tw / 2, 4, p.maxX - tw - 4), by = y - (rain ? 62 : 50) * s - bh;
+      c.fillStyle = '#fffdf6'; c.strokeStyle = p.sayBad ? '#b3362a' : '#2d3138'; c.lineWidth = 1.5; rr(c, bx, by, tw, bh, 8); c.fill(); c.stroke();
+      c.beginPath(); c.moveTo(x - 4, by + bh - 1); c.lineTo(x, by + bh + 6); c.lineTo(x + 4, by + bh - 1); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#fffdf6'; c.fillRect(x - 3.5, by + bh - 3, 7, 3);
+      c.fillStyle = p.sayBad ? '#b3362a' : '#16242a'; c.textBaseline = 'middle'; c.fillText(p.say, bx + tw / 2, by + bh / 2 + 0.5); c.textBaseline = 'alphabetic';
+      c.globalAlpha = clamp(p.alpha, 0, 1);
+    }
     if (p.angry) { c.fillStyle = '#b3362a'; c.font = '800 ' + Math.round(13 * s) + 'px sans-serif'; c.textAlign = 'center'; c.fillText('!', x, y - (rain ? 46 : 35) * s); }
     c.restore();
   }
@@ -186,7 +196,7 @@ const Scene = (() => {
       const side = Math.random() < 0.5 ? -1 : 1, door = st.doors[i] != null ? st.doors[i] : st.W / 2;
       const v = st.mode === 'day' ? L.slot * 0.8 / (0.15 * st.daySec) : 46;
       const p = { kind, i, x: 0, dir: -side, lane: rand(5, 26), size: rand(0.88, 1.08), phase: Math.random() * 6, alpha: 0, v: v * rand(0.85, 1.2),
-        skin: pickOf(SKIN), cloth: pickOf(CLOTH), hair: pickOf(['#20262c', '#3b2a22', '#5b3a2a', '#20262c']), umb: pickOf(['#c8452f', '#2b5aa8', '#e0a21e', '#2e7d5b']), state: 'in', wait: 0, cup: false, angry: false, still: false, door };
+        skin: pickOf(SKIN), cloth: pickOf(CLOTH), hair: pickOf(['#20262c', '#3b2a22', '#5b3a2a', '#20262c']), umb: pickOf(['#c8452f', '#2b5aa8', '#e0a21e', '#2e7d5b']), state: 'in', wait: 0, cup: false, angry: false, still: false, door, say: '', sayT: 0, sayBad: false, maxX: st.W };
       if (kind === 'pass') { p.x = side < 0 ? -20 : st.W + 20; p.v = st.mode === 'day' ? st.W / (0.4 * st.daySec) : 52; p.state = 'pass'; p.alpha = 1; }
       else if (kind === 'ojol') { p.x = side < 0 ? -30 : st.W + 30; p.lane = rand(30, 38); p.v = st.mode === 'day' ? st.W / (0.16 * st.daySec) : 170; p.size = 1; }
       else p.x = clamp(door + side * L.slot * rand(0.6, 1.15), -20, st.W + 20);
@@ -208,6 +218,14 @@ const Scene = (() => {
         st.queue.sort((a, b) => a.t - b.t);
       }
     }
+    /* Sebagian pelanggan berkomentar; dibatasi supaya gelembung tidak bertumpuk. */
+    function speak(p, kind, chance) {
+      const o = st.data.outlets[p.i], list = o && o.says && o.says[kind];
+      if (!list || !list.length || st.daySec < 2 && st.mode === 'day' || Math.random() > chance) return;
+      if (st.people.filter(q => q.sayT > 0).length >= 3) return;
+      p.say = pickOf(list); p.sayT = st.mode === 'day' ? Math.max(0.9, 0.2 * st.daySec) : 2.2;
+      p.sayBad = kind === 'lost' || /Kemahalan|Terlalu|Kurang|Kebanyakan|Kemanisan|kurang/.test(p.say);
+    }
     function step(dt) {
       const d = st.data; if (!d || !st.W) return;
       const L = layout(), rain = d.wx === 'hujan';
@@ -226,19 +244,19 @@ const Scene = (() => {
       }
       const hold = st.mode === 'day' ? 0.045 * st.daySec : 1.6;
       for (const p of st.people) {
-        p.phase += dt * 11; p.still = false;
+        p.phase += dt * 11; p.still = false; if (p.sayT > 0) p.sayT -= dt;
         const go = tx => { const dx = tx - p.x, m = p.v * dt; p.dir = dx >= 0 ? 1 : -1; if (Math.abs(dx) <= m) { p.x = tx; return true; } p.x += p.dir * m; return false; };
         if (p.state === 'pass') { p.x += p.dir * p.v * dt; if (p.x < -30 || p.x > st.W + 30) p.dead = true; }
         else if (p.state === 'in') {
           p.alpha = Math.min(1, p.alpha + dt * 5);
           const stopAt = p.kind === 'lost' ? p.door - p.dir * 16 * L.u : p.kind === 'ojol' ? p.door + 4 : p.door;
-          if (go(stopAt)) { p.state = 'hold'; p.wait = hold * (p.kind === 'buy' ? rand(0.7, 1.3) : 0.8); if (p.kind === 'lost') p.angry = true; }
+          if (go(stopAt)) { p.state = 'hold'; p.wait = hold * (p.kind === 'buy' ? rand(0.7, 1.3) : 0.8); if (p.kind === 'lost') { p.angry = true; speak(p, 'lost', 0.6); } }
         } else if (p.state === 'hold') {
           p.still = true; p.wait -= dt;
           if (p.kind === 'buy') p.alpha = Math.max(0, p.alpha - dt * 9);
           if (p.wait <= 0) {
             p.state = 'out'; p.dir = p.kind === 'lost' ? -p.dir : (Math.random() < 0.5 ? -1 : 1);
-            if (p.kind === 'buy') { p.cup = true; st.floats.push({ x: p.door, y: 0, life: 1 }); if (st.onSale) st.onSale(); }
+            if (p.kind === 'buy') { p.cup = true; st.floats.push({ x: p.door, y: 0, life: 1 }); if (st.onSale) st.onSale(); speak(p, 'buy', 0.45); }
             if (p.kind === 'ojol') { st.floats.push({ x: p.door, y: 0, life: 1 }); if (st.onSale) st.onSale(); }
             p.tx = p.kind === 'ojol' ? (p.dir > 0 ? st.W + 40 : -40) : clamp(p.door + p.dir * L.slot * rand(0.6, 1.1), -30, st.W + 30);
           }
@@ -314,6 +332,7 @@ const Scene = (() => {
       stop() { cancelAnimationFrame(st.raf); st.raf = 0; },
       set time(v) { st.t = v; }, get time() { return st.t; },
       set onSale(f) { st.onSale = f; },
+      get talking() { return st.people.filter(p => p.sayT > 0).length; },
       still() { step(0.016); draw(); } };
   }
   /* Gambar diam satu toko untuk kartu outlet. */

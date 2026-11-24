@@ -888,6 +888,7 @@ const Engine = (() => {
 
     const profit = rev + royalty - cogs - waste - w - fee - ops - s.outlets.reduce((a, o) => a + rent(s, o), 0) / 30;
     const report = { day: s.day, wx: s.wx, rev, cogs, waste, wages: w, fee, ops, royalty, served, lost: R(lost), profit, bills, notes, sold,
+      out: rows.map(x => ({ id: x.o.id, loc: x.o.loc, served: x.o.last.served, lost: x.o.last.lost, vis: x.o.last.vis, closed: x.o.last.closed })),
       cashDelta: s.cash - cashStart, tags: seasonTags(s.day) };
     s.last = report;
     s.hist.push({ d: s.day, rev, profit: R(profit), cash: R(s.cash), rep: R(s.rep * 10) / 10, cust: served });

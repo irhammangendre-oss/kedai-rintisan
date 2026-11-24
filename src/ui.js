@@ -4,7 +4,10 @@
   const E = Engine, JT = E.JT;
   const $ = q => document.querySelector(q);
   const KEY = 'kedai-rintisan-v1';
-  let S = null, tab = 'ringkasan', dialog = null, toastT = 0;
+  let S = null, tab = 'ringkasan', dialog = null, toastT = 0, fx = null, busy = false, justRan = false, prevCash = null, lastDlg = null;
+  const P = Sound.prefs, G = window.gsap || null;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ambient = Scene.create();
   const cloud = { db: null, uid: null, busy: false, dirty: false, status: 'Tersimpan di peramban ini' };
   const draft = { loanType: 'kur', loanAmt: 10, loanMonths: 24, buy: {}, io: '' };
 
@@ -168,7 +171,9 @@
       return `<tr><td>${esc(E.LOCS[o.loc].n)}</td><td class="n">${x.vis}</td><td class="n">${x.served}</td><td class="n ${x.lost > x.served * 0.1 ? 'bad' : ''}">${x.lost}</td>
         <td class="n">${rp(x.rev)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar ${u > 1 ? 'bad' : u > 0.85 ? 'warn' : 'good'}" style="flex:1"><i style="width:${Math.min(100, u * 100)}%"></i></div><span class="num small">${pct(x.util)}</span></div></td></tr>`;
     }).join('');
-    return `<div class="wrap"><div class="cols"><div class="wrap">
+    return `<div class="wrap"><figure class="street"><canvas id="street" aria-label="Gambar suasana outlet Anda hari ini: toko, cuaca, dan pelanggan yang lalu-lalang"></canvas>
+        <figcaption>${esc(E.WX[S.wx])} · ${S.outlets.length} outlet${S.last ? ' · kemarin ' + S.last.served + ' pelanggan terlayani' : ''}</figcaption></figure>
+      <div class="cols"><div class="wrap">
       ${alerts()}
       <section class="card"><header><h3>Outlet kemarin</h3><span class="small muted">Kapasitas terpakai di atas 100% berarti pelanggan pergi</span></header>
         <div class="tablewrap"><table><thead><tr><th>Outlet</th><th class="n">Pengunjung</th><th class="n">Terlayani</th><th class="n">Pergi</th><th class="n">Omzet</th><th>Kapasitas terpakai</th></tr></thead><tbody>${outs}</tbody></table></div></section>
@@ -240,7 +245,7 @@
     const cards = S.outlets.map(o => {
       const L = E.LOCS[o.loc], cap = Math.round(E.capacity(S, o)), q = Math.round(E.quality(S, o)), x = o.last, min = o.own ? 0 : 1;
       const eq = o.equip < 3 ? E.EQUIP[o.equip + 1] : null, dk = o.dekor < 2 ? E.DEKOR[o.dekor + 1] : null;
-      return `<section class="card"><header><h3>${esc(L.n)}</h3><span class="row" style="gap:6px">${o.own ? '<span class="chip">Anda jaga sendiri</span>' : '<span class="chip">Kepala toko</span>'}${o.closed > 0 ? '<span class="chip bad">Tutup ' + o.closed + ' hari</span>' : ''}${o.broken > 0 ? '<span class="chip warn">Mesin rusak</span>' : ''}</span></header>
+      return `<section class="card"><canvas class="shoppic" data-shop="${o.id}" aria-hidden="true"></canvas><header><h3>${esc(L.n)}</h3><span class="row" style="gap:6px">${o.own ? '<span class="chip">Anda jaga sendiri</span>' : '<span class="chip">Kepala toko</span>'}${o.closed > 0 ? '<span class="chip bad">Tutup ' + o.closed + ' hari</span>' : ''}${o.broken > 0 ? '<span class="chip warn">Mesin rusak</span>' : ''}</span></header>
         <dl class="kv">
           <dt>Dikenal warga sekitar</dt><dd>${pct(o.known)}</dd>
           <dt>Kualitas di mata pelanggan</dt><dd class="${tone(q, 45, 65)}">${q}</dd>
@@ -262,7 +267,7 @@
     }).join('');
     const news = Object.keys(E.LOCS).filter(l => !S.outlets.some(o => o.loc === l)).map(l => {
       const L = E.LOCS[l], cost = E.setupCost(S, l), est = locEstimate(l), deal = S.flags.deal === l;
-      return `<section class="card"><header><h3>${esc(L.n)}</h3>${deal ? '<span class="chip good">Diskon 30%</span>' : ''}</header>
+      return `<section class="card"><canvas class="shoppic soon" data-loc="${l}" aria-hidden="true"></canvas><header><h3>${esc(L.n)}</h3>${deal ? '<span class="chip good">Diskon 30%</span>' : ''}</header>
         <p class="small muted">${esc(L.d)}</p>
         <dl class="kv"><dt>Biaya buka</dt><dd>${rp(cost)}</dd><dt>Sewa per bulan</dt><dd>${rp(L.rent * S.infl)}</dd>
           <dt>Orang lewat per hari</dt><dd>±${L.traffic}</dd>
@@ -355,7 +360,7 @@
       <section class="card"><header><h3>Simpanan</h3></header>
         <p class="small" id="savestat">${esc(cloud.status)}</p>
         <p class="small muted">Permainan disimpan otomatis tiap hari berjalan. Untuk cadangan atau pindah perangkat, salin teks simpanan di bawah, lalu tempel di perangkat lain.</p>
-        <textarea id="io" rows="4" data-chg="io" aria-label="Teks simpanan" placeholder="Tempel teks simpanan di sini untuk memuat"></textarea>
+        <textarea id="io" rows="4" data-lenis-prevent data-chg="io" aria-label="Teks simpanan" placeholder="Tempel teks simpanan di sini untuk memuat"></textarea>
         <div class="row"><button data-act="export">Salin simpanan</button><button data-act="import">Muat dari teks</button><button class="ghost" data-act="asknew">Mulai usaha baru</button></div></section>
     </div><section class="card"><header><h3>Buku catatan</h3></header>${logList(80)}</section></div>`;
   }
@@ -382,30 +387,61 @@
   }
 
   /* ---------- Render ---------- */
-  function render() {
+  function shell() {
     const app = $('#app');
-    if (!S) { app.style.display = 'block'; app.innerHTML = vStart(); renderDialog(); return; }
-    app.style.display = '';
-    const c = E.cal(S.day), tags = E.seasonTags(S.day), canSkip = S.auto.on && S.research.r_supplier;
+    if (app.dataset.ready) return;
+    app.dataset.ready = '1';
+    app.innerHTML = '<header class="top" id="top"></header><nav class="side" id="side" aria-label="Halaman"></nav><main id="view"><div id="page"></div></main>';
+    if (window.MotionKit) fx = MotionKit.init({ scroller: $('#view'), headings: '#page h1, #page h2', cards: '#page .card, #page .street, #page .alert', hover: '#page .grid > .card' });
+  }
+  function settingsHtml() {
+    const tg = (k, label) => `<button class="mini tog" data-act="pref" data-k="${k}" aria-pressed="${P[k] ? 'true' : 'false'}">${label}: ${P[k] ? 'nyala' : 'mati'}</button>`;
+    return `<div class="prefs">${tg('music', 'Musik')}${tg('sfx', 'Efek suara')}
+      <label for="vol" class="small">Volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="${P.vol}" data-chg="vol" data-inp="vol">
+      <label for="anim" class="small">Animasi hari</label><select id="anim" data-chg="anim">${['penuh', 'cepat', 'mati'].map(a => `<option ${P.anim === a ? 'selected' : ''}>${a}</option>`).join('')}</select></div>`;
+  }
+  function sceneData() {
+    return { brand: S.brand, wx: S.wx, ojol: S.ojol, outlets: S.outlets.map(o => ({ loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0, served: o.last ? o.last.served : 20 })) };
+  }
+  function paint() {
+    const st = $('#street');
+    if (st) { ambient.attach(st); ambient.setData(sceneData(), 'ambient'); ambient.time = 0.36; if (reduce) ambient.still(); else ambient.start(); } else ambient.stop();
+    document.querySelectorAll('canvas.shoppic').forEach(cv => {
+      const o = cv.dataset.shop ? S.outlets.find(x => x.id === +cv.dataset.shop) : { loc: cv.dataset.loc, equip: E.LOCS[cv.dataset.loc].equip, dekor: 0, staff: 1, own: false, closed: 0 };
+      if (o) Scene.thumb(cv, { loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0 }, S.brand, S.wx);
+    });
+  }
+  function render() {
+    shell();
+    const app = $('#app'), page = $('#page');
+    if (!S) { app.classList.add('intro'); ambient.stop(); page.innerHTML = vStart(); if (fx) fx.refresh('start'); renderDialog(); return; }
+    app.classList.remove('intro');
+    const tags = E.seasonTags(S.day), canSkip = S.auto.on && S.research.r_supplier;
     const lastM = S.months[S.months.length - 1];
-    const focus = document.activeElement && document.activeElement.id, main = $('main'), sc = main ? main.scrollTop : 0;
-    app.innerHTML = `<header class="top">
+    const focus = document.activeElement && document.activeElement.id;
+    $('#top').innerHTML = `
       <div class="brand">${esc(S.brand)}<small>${esc(E.dateStr(S.day))} · hari ke-${S.day}</small></div>
       <div class="kpis">
-        <div class="kpi"><b class="${S.cash < 0 ? 'bad' : ''}">${rp(S.cash)}</b><span>Kas</span></div>
+        <div class="kpi"><b class="${S.cash < 0 ? 'bad' : ''}" id="kpi-cash">${rp(S.cash)}</b><span>Kas</span></div>
         <div class="kpi"><b class="${tone(S.rep, 40, 65)}">${Math.round(S.rep)}<span class="small muted" style="font-size:12px"> /100</span></b><span>Reputasi</span></div>
         <div class="kpi"><b>${lastM ? jt(E.monthProfit(lastM)) : '–'}</b><span>Laba bulan lalu</span></div>
         <div class="kpi"><b>${esc(E.WX[S.wx])}</b><span>Cuaca hari ini · besok ${esc(E.WX[S.wxFc].toLowerCase())}</span></div>
         ${tags.map(t => `<span class="chip" style="align-self:center">${esc(t)}</span>`).join('')}
       </div>
       <div class="go"><button data-act="skip" ${canSkip ? '' : 'disabled'} title="${canSkip ? 'Berhenti otomatis bila ada kejadian' : 'Butuh pemasok langganan aktif'}">Lompat 7 hari</button>
-        <button class="primary" data-act="next" id="next">Jalankan hari ▸</button></div>
-    </header>
-    <nav class="side" aria-label="Halaman">${TABS.map(([id, n]) => `<button data-act="tab" data-id="${id}" ${tab === id ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
-      <div class="foot">Mode ${esc(S.mode)}<br>${S.outlets.length} outlet · ${S.franchise.length} mitra<br>Tombol spasi: jalankan hari</div></nav>
-    <main id="view">${VIEWS[tab]()}</main>`;
-    $('main').scrollTop = sc;
+        <button class="primary" data-act="next" id="next">Jalankan hari ▸</button></div>`;
+    $('#side').innerHTML = `${TABS.map(([id, n]) => `<button data-act="tab" data-id="${id}" ${tab === id ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
+      <div class="foot">${settingsHtml()}<p>Mode ${esc(S.mode)} · ${S.outlets.length} outlet · ${S.franchise.length} mitra<br>Tombol spasi: jalankan hari</p></div>`;
+    page.innerHTML = VIEWS[tab]();
     if (focus) { const el = document.getElementById(focus); if (el) el.focus(); }
+    paint();
+    if (fx) fx.refresh(tab);
+    /* angka kas bergulir */
+    const kc = $('#kpi-cash');
+    if (G && !reduce && kc && prevCash != null && prevCash !== S.cash) { const o = { v: prevCash }; kc.textContent = rp(o.v); G.to(o, { v: S.cash, duration: 0.7, ease: 'power2.out', onUpdate: () => { if (kc.isConnected) kc.textContent = rp(o.v); } }); }
+    prevCash = S.cash;
+    /* struk tercetak */
+    if (justRan) { justRan = false; const sk = $('.struk'); if (sk && tab === 'ringkasan') { Sound.sfx('print'); if (G && !reduce) G.from(sk, { clipPath: 'inset(0 0 100% 0)', y: -14, duration: 0.95, ease: 'power2.out', clearProps: 'clipPath,transform' }); } }
     renderDialog();
   }
   function renderDialog() {
@@ -416,9 +452,10 @@
         choices: ev.choices.map((c, i) => ({ label: c.label, hint: c.hint || '', dis: c.can && !c.can(S), act: 'choice', i })) };
       else S.pending = null;
     }
-    if (!dialog) { m.classList.remove('on'); m.innerHTML = ''; return; }
+    if (!dialog) { m.classList.remove('on'); m.innerHTML = ''; lastDlg = null; return; }
+    if (dialog !== lastDlg) { lastDlg = dialog; Sound.sfx(dialog.sfx || 'event'); }
     m.classList.add('on');
-    m.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t">
+    m.innerHTML = `<div class="dialog" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="dlg-t">
       <span class="eyebrow">${esc(dialog.eyebrow || '')}</span><h2 id="dlg-t">${esc(dialog.title)}</h2><p>${esc(dialog.text)}</p>
       <div class="choices">${dialog.choices.map(c => `<button data-act="${c.act}" data-i="${c.i != null ? c.i : ''}" ${c.dis ? 'disabled' : ''} ${c.primary ? 'class="primary"' : ''}><b>${esc(c.label)}</b><span>${esc(c.hint || '')}</span></button>`).join('')}</div></div>`;
     const b = m.querySelector('button:not(:disabled)'); if (b) b.focus();
@@ -429,28 +466,88 @@
 
   /* ---------- Aksi ---------- */
   function done(r) { if (r && r.msg) toast(r.msg); save(); render(); }
-  function afterDay() {
-    if (S.over) { dialog = { eyebrow: 'Hari ke-' + S.day, title: 'Usaha bangkrut', text: 'Kas minus terlalu lama dan para penagih menutup warung. ' + S.brand + ' bertahan ' + (S.day - 1) + ' hari dengan ' + S.outlets.length + ' outlet. Tiap pengusaha punya cerita gagal pertama.',
+  function afterDay(goalsBefore) {
+    if (S.over) { dialog = { sfx: 'lose', eyebrow: 'Hari ke-' + S.day, title: 'Usaha bangkrut', text: 'Kas minus terlalu lama dan para penagih menutup warung. ' + S.brand + ' bertahan ' + (S.day - 1) + ' hari dengan ' + S.outlets.length + ' outlet. Tiap pengusaha punya cerita gagal pertama.',
       choices: [{ label: 'Mulai usaha baru', act: 'newgame', primary: true }, { label: 'Lihat pembukuan terakhir', act: 'close' }] }; }
-    else if (S.flags.justWon) { delete S.flags.justWon; info('Pencapaian puncak', 'Valuasi Rp 5 miliar', S.brand + ' kini bernilai lebih dari Rp 5 miliar, dibangun dari satu warung di mulut gang dalam ' + (S.day - 1) + ' hari. Anda boleh terus bermain selama yang Anda mau.'); }
+    else if (S.flags.justWon) { delete S.flags.justWon; info('Pencapaian puncak', 'Valuasi Rp 5 miliar', S.brand + ' kini bernilai lebih dari Rp 5 miliar, dibangun dari satu warung di mulut gang dalam ' + (S.day - 1) + ' hari. Anda boleh terus bermain selama yang Anda mau.'); dialog.sfx = 'win'; }
+    else if (Object.keys(S.goals).length > goalsBefore) Sound.sfx('win');
   }
-  function nextDay(n) {
-    if (!S || S.over || S.pending || dialog) return;
-    let r = null, i = 0;
-    for (; i < n; i++) { r = E.runDay(S); if (!r || S.pending || S.over || S.cash < 0 || S.flags.justWon) { i++; break; } }
-    afterDay();
-    if (r && !dialog) toast(n > 1 ? i + ' hari berlalu. Kas ' + rp(S.cash) + '.' : 'Hari ke-' + r.day + ' selesai. Laba ' + rp(r.profit) + '.');
-    draft.buy = {};
+  /* Panggung: hari berjalan sebagai animasi. days = [{r, snap}] */
+  let stageSkip = null;
+  function playStage(days, daySec) {
+    return new Promise(resolve => {
+      const el = $('#stage'), many = days.length > 1;
+      el.innerHTML = `<div class="stagebox"><canvas id="stagecv"></canvas>
+        <div class="hud"><div class="clock num" id="st-clock">07.00</div><div class="hud-day" id="st-day"></div>
+          <div class="hud-n"><b class="num" id="st-served">0</b><span>terlayani</span></div><div class="hud-n"><b class="num bad" id="st-lost">0</b><span>pergi</span></div>
+          <div class="hud-n wide"><b class="num" id="st-rev">Rp 0</b><span>omzet</span></div>
+          <div class="hud-n wide" id="st-profit-box" style="visibility:hidden"><b class="num" id="st-profit"></b><span>laba hari ini</span></div>
+          <button data-act="skipanim" id="st-skip">Lewati ▸▸</button></div>
+        <div class="prog"><i id="st-prog"></i></div></div>`;
+      el.classList.add('on');
+      const sc = Scene.create(); sc.attach($('#stagecv')); sc.onSale = () => Sound.sfx('ching');
+      Sound.setIntensity(1);
+      let di = -1, t0 = 0, holdUntil = 0, raf = 0, done = false, last = 0;
+      const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+      const finish = () => { if (done) return; done = true; cancelAnimationFrame(raf); stageSkip = null; Sound.setIntensity(0); el.classList.remove('on'); el.innerHTML = ''; resolve(); };
+      stageSkip = finish;
+      function startDay(ts) {
+        di++; if (di >= days.length) return finish();
+        const d = days[di], r = d.r;
+        sc.setData({ brand: S.brand, wx: r.wx, ojol: S.ojol, outlets: d.snap.map(o => { const x = r.out.find(q => q.id === o.id) || {}; return Object.assign({}, o, { closed: !!x.closed, served: x.served || 0, lost: x.lost || 0, vis: x.vis || 0 }); }) }, 'day', daySec);
+        $('#st-day').textContent = 'Hari ke-' + r.day + ' · ' + E.WX[r.wx] + (r.tags.length ? ' · ' + r.tags.join(', ') : '');
+        $('#st-profit-box').style.visibility = 'hidden';
+        t0 = ts; holdUntil = 0; Sound.sfx('bell');
+      }
+      function frame(ts) {
+        if (done) return;
+        raf = requestAnimationFrame(frame);
+        if (di < 0) startDay(ts);
+        if (done) return;
+        const r = days[di].r, dt = Math.min(0.05, (ts - (last || ts)) / 1000); last = ts;
+        const t = Math.min(1, (ts - t0) / (daySec * 1000)), k = ease(Math.min(1, t / 0.9));
+        sc.time = t; sc.step(dt); sc.draw();
+        const mins = Math.round((7 + t * 14) * 60 / 10) * 10;
+        $('#st-clock').textContent = String(Math.floor(mins / 60)).padStart(2, '0') + '.' + String(mins % 60).padStart(2, '0');
+        $('#st-served').textContent = Math.round(r.served * k); $('#st-lost').textContent = Math.round(r.lost * k); $('#st-rev').textContent = rp(r.rev * k);
+        $('#st-prog').style.width = ((di + t) / days.length * 100) + '%';
+        if (t >= 1) {
+          if (!holdUntil) { holdUntil = ts + (many ? 260 : 1150); const pb = $('#st-profit-box'), pe = $('#st-profit'); pe.textContent = rp(r.profit); pe.className = 'num ' + (r.profit >= 0 ? 'good' : 'bad'); pb.style.visibility = 'visible';
+            if (G && !reduce) G.fromTo(pb, { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)' }); if (!many) Sound.sfx(r.profit >= 0 ? 'good' : 'bad'); }
+          else if (ts >= holdUntil) startDay(ts);
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    });
+  }
+  async function nextDay(n) {
+    if (!S || S.over || S.pending || dialog || busy) return;
+    busy = true;
+    const days = [], goalsBefore = Object.keys(S.goals).length;
+    for (let i = 0; i < n; i++) {
+      const snap = S.outlets.map(o => ({ id: o.id, loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own }));
+      const r = E.runDay(S); if (!r) break;
+      days.push({ r, snap });
+      if (S.pending || S.over || S.cash < 0 || S.flags.justWon) break;
+    }
+    save();
+    const r = days.length ? days[days.length - 1].r : null;
+    if (days.length && P.anim !== 'mati' && !reduce) await playStage(days, days.length > 1 ? 1.25 : P.anim === 'cepat' ? 2.4 : 5.5);
+    afterDay(goalsBefore);
+    if (r && !dialog) toast(days.length > 1 ? days.length + ' hari berlalu. Kas ' + rp(S.cash) + '.' : 'Hari ke-' + r.day + ' selesai. Laba ' + rp(r.profit) + '.');
+    draft.buy = {}; justRan = true; busy = false;
     save(); render();
   }
   const ACT = {
-    tab: d => { tab = d.id; render(); $('main').scrollTop = 0; },
+    tab: d => { tab = d.id; render(); if (fx) fx.top(); else $('#view').scrollTop = 0; },
+    skipanim: () => { if (stageSkip) stageSkip(); },
+    pref: d => { Sound.set(d.k, !P[d.k]); render(); },
     next: () => nextDay(1),
     skip: () => nextDay(7),
     price: d => { E.setPrice(S, d.k, S.prices[d.k] + +d.d); done(); },
     fill: d => { draft.buy[d.k] = coverQty(d.k, +d.d); render(); },
-    buy: d => { const q = draft.buy[d.k] != null ? draft.buy[d.k] : coverQty(d.k, 3); const r = E.buy(S, d.k, q); if (r.ok) delete draft.buy[d.k]; done(r); },
-    buyall: () => { let n = 0; for (const k in E.ING) { const q = coverQty(k, 3); if (q > 0 && E.buy(S, k, q).ok) n++; } draft.buy = {}; done({ msg: n ? 'Belanja selesai, ' + n + ' jenis bahan dibeli.' : 'Stok masih cukup.' }); },
+    buy: d => { const q = draft.buy[d.k] != null ? draft.buy[d.k] : coverQty(d.k, 3); const r = E.buy(S, d.k, q); if (r.ok) { delete draft.buy[d.k]; Sound.sfx('pop'); } done(r); },
+    buyall: () => { let n = 0; for (const k in E.ING) { const q = coverQty(k, 3); if (q > 0 && E.buy(S, k, q).ok) n++; } draft.buy = {}; if (n) Sound.sfx('pop'); done({ msg: n ? 'Belanja selesai, ' + n + ' jenis bahan dibeli.' : 'Stok masih cukup.' }); },
     hire: d => done(E.hire(S, +d.id)), fire: d => done(E.fire(S, +d.id)),
     equip: d => done(E.upgradeEquip(S, +d.id)), dekor: d => done(E.upgradeDekor(S, +d.id)),
     open: d => { const L = E.LOCS[d.loc]; dialog = { eyebrow: 'Ekspansi', title: 'Buka outlet di ' + L.n + '?', text: 'Biaya buka ' + rp(E.setupCost(S, d.loc)) + '. Outlet baru langsung menambah gaji kepala toko dan satu barista, sementara pelanggan baru berdatangan pelan-pelan.',
@@ -486,10 +583,15 @@
     loanamt: el => { draft.loanAmt = Math.max(1, Math.floor(+el.value || 1)); render(); },
     loanmo: el => { draft.loanMonths = +el.value; render(); },
     io: el => { draft.io = el.value; },
+    vol: el => { Sound.set('vol', +el.value); },
+    anim: el => { Sound.set('anim', el.value); },
   };
   document.addEventListener('click', e => {
+    Sound.unlock();
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
+    if (busy && b.dataset.act !== 'skipanim') return;
+    if (!/^(next|skip|buy|buyall|skipanim)$/.test(b.dataset.act)) Sound.sfx('tick');
     const f = ACT[b.dataset.act]; if (f) f(b.dataset);
   });
   document.addEventListener('change', e => {
@@ -497,14 +599,16 @@
     if (!el) return;
     const f = CHG[el.dataset.chg]; if (f) f(el, el.dataset);
   });
+  document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.inp === 'vol') Sound.set('vol', +e.target.value); });
   document.addEventListener('submit', e => {
-    e.preventDefault();
+    e.preventDefault(); Sound.unlock();
     if (e.target.id !== 'newgame') return;
     S = E.newGame({ brand: $('#brand').value.trim() || 'Kedai Rintisan', mode: $('#mode-s').checked ? 'santai' : 'realistis' });
-    tab = 'ringkasan'; save(); render();
+    tab = 'ringkasan'; prevCash = null; save(); render(); Sound.sfx('bell');
   });
   document.addEventListener('keydown', e => {
-    if (e.code !== 'Space' || !S || dialog) return;
+    if (e.code === 'Space' && stageSkip) { e.preventDefault(); stageSkip(); return; }
+    if (e.code !== 'Space' || !S || dialog || busy) return;
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || t === 'BUTTON') return;
     e.preventDefault(); nextDay(1);

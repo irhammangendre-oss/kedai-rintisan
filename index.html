@@ -137,12 +137,146 @@ svg text{font-family:var(--f-mono);font-size:10px;fill:var(--muted)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 
+/* ---------- Gerak, adegan, panggung ---------- */
+.lenis.lenis-smooth{scroll-behavior:auto!important}
+.lenis.lenis-stopped{overflow:hidden}
+#app.intro{display:block;overflow:auto}
+#app.intro .top,#app.intro .side{display:none}
+#app.intro main{height:100%;padding-bottom:40px}
+#page{min-height:100%}
+button{transition:transform .12s ease,border-color .15s ease,background-color .15s ease,box-shadow .15s ease}
+button:active:not(:disabled){transform:scale(.96)}
+button.primary:hover:not(:disabled){box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent);transform:translateY(-1px)}
+.side button{transition:background-color .18s ease,border-color .18s ease,padding-left .18s ease}
+.side button:hover{padding-left:16px}
+.bar i{transition:width .5s cubic-bezier(.2,.7,.2,1)}
+.grid>.card{will-change:transform}
+.street{margin:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#cfe6f5;position:relative}
+.street canvas{display:block;width:100%;height:250px}
+.street figcaption{position:absolute;left:10px;top:8px;font-size:12px;background:rgba(255,255,255,.82);color:#16242a;padding:2px 9px;border-radius:99px}
+.shoppic{display:block;width:calc(100% + 32px);height:150px;margin:-14px -16px 0;border-radius:8px 8px 0 0;border-bottom:1px solid var(--line)}
+.shoppic.soon{filter:saturate(.55);opacity:.85}
+.prefs{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:10px;color:var(--ink)}
+.prefs input[type=range]{width:100%}
+.prefs select{width:100%}
+.tog{text-align:left}
+.tog[aria-pressed=true]{border-color:var(--accent);background:var(--tint)}
+.side .foot .tog{padding:4px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+.side .foot .tog:hover{padding-left:10px}
+#stage{position:fixed;inset:0;z-index:8;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(10,18,20,.62);backdrop-filter:blur(3px)}
+#stage.on{display:flex;animation:fadein .25s ease}
+.stagebox{width:min(1080px,100%);background:var(--card);border:2px solid var(--ink);border-radius:12px;overflow:hidden;animation:popin .35s cubic-bezier(.2,.9,.3,1.2)}
+.stagebox canvas{display:block;width:100%;height:min(400px,52vh)}
+.hud{display:flex;flex-wrap:wrap;align-items:center;gap:8px 22px;padding:12px 18px}
+.clock{font-size:30px;font-weight:700;min-width:92px}
+.hud-day{flex:1;min-width:160px;color:var(--muted);font-size:14px}
+.hud-n{display:flex;flex-direction:column;line-height:1.15;min-width:70px}
+.hud-n.wide{min-width:140px}
+.hud-n b{font-size:19px} .hud-n span{font-size:12px;color:var(--muted)}
+.prog{height:5px;background:var(--tint)} .prog i{display:block;height:100%;background:var(--accent);width:0}
+#modal.on{animation:fadein .2s ease}
+#modal.on .dialog{animation:popin .32s cubic-bezier(.2,.9,.3,1.2)}
+#toast{transition:opacity .25s ease,transform .25s cubic-bezier(.2,.9,.3,1.2);transform:translate(-50%,14px)}
+#toast.on{transform:translate(-50%,0)}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes popin{from{opacity:0;transform:translateY(16px) scale(.96)}to{opacity:1;transform:none}}
+@media (max-width:900px){.side .foot{display:block;margin:0;padding:0 8px}.prefs{grid-auto-flow:column;grid-template-columns:none;align-items:center}.side .foot p{display:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="stage"></div>
 <div id="modal"></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/motion@12.23.24/dist/motion.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lenis@1.1.20/dist/lenis.min.js"></script>
+<script>
+/* motion-kit.js — GSAP ScrollTrigger (judul per kata) + Motion (kartu masuk & hover) + Lenis (smooth scroll).
+   Tempel inline SETELAH keempat <script src> library. Semua library opsional: yang gagal dimuat dilewati,
+   dan konten tidak pernah dibiarkan tersembunyi.
+   Pakai:
+     var fx = MotionKit.init({ scroller: null,            // elemen scroll; null = window
+                               headings: "h1,h2",         // judul yang dipecah per kata
+                               cards: ".card",            // elemen yang dianimasikan masuk
+                               hover: ".card" });         // elemen yang terangkat saat hover
+     fx.refresh("nama-halaman");  // panggil setiap selesai render ulang DOM; animasi masuk hanya
+                                  // diputar bila kuncinya berubah, hover selalu dipasang ulang
+     fx.top();                    // scroll ke atas (lewat Lenis bila ada)                              */
+(function (root) {
+  function escHtml(s) { return String(s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function init(opt) {
+    opt = opt || {};
+    var scroller = opt.scroller || null, scope = opt.scope || document;
+    var reduce = root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var G = !reduce && root.gsap && root.ScrollTrigger ? root.gsap : null;
+    var M = !reduce && root.Motion ? root.Motion : null;
+    var lenis = null, lastKey, stops = [], slot = 0;
+    if (G) { G.registerPlugin(root.ScrollTrigger); if (scroller) root.ScrollTrigger.defaults({ scroller: scroller }); }
+    if (!reduce && root.Lenis) {
+      try {
+        lenis = new root.Lenis(scroller ? { wrapper: scroller, content: scroller.firstElementChild, lerp: 0.11 } : { lerp: 0.11 });
+        if (G) { lenis.on("scroll", root.ScrollTrigger.update); G.ticker.add(function (t) { lenis.raf(t * 1000); }); G.ticker.lagSmoothing(0); }
+        else (function loop(t) { lenis.raf(t); requestAnimationFrame(loop); })(0);
+      } catch (e) { lenis = null; }
+    }
+    function split(h) {
+      var text = h.textContent.trim();
+      h.setAttribute("aria-label", text); // pembaca layar tetap membaca judul utuh
+      h.innerHTML = text.split(/\s+/).map(function (w) { return '<span class="mk-w" aria-hidden="true" style="display:inline-block">' + escHtml(w) + "</span>"; }).join(" ");
+      return h.querySelectorAll(".mk-w");
+    }
+    function refresh(key) {
+      stops.forEach(function (f) { try { f(); } catch (e) {} }); stops = [];
+      if (G) root.ScrollTrigger.getAll().forEach(function (t) { t.kill(); });
+      var fresh = key === undefined || key !== lastKey; lastKey = key;
+      var els = [];
+      try {
+        if (M && opt.hover) scope.querySelectorAll(opt.hover).forEach(function (el) {
+          stops.push(M.hover(el, function () {
+            M.animate(el, { y: -4, scale: 1.015 }, { duration: 0.18 });
+            return function () { M.animate(el, { y: 0, scale: 1 }, { duration: 0.25 }); };
+          }));
+        });
+        if (!fresh) return;
+        if (G && opt.headings) scope.querySelectorAll(opt.headings).forEach(function (h) {
+          G.from(split(h), { opacity: 0, yPercent: 70, duration: 0.55, ease: "power3.out", stagger: 0.08,
+            scrollTrigger: { trigger: h, start: "top 94%", once: true } });
+        });
+        if (M && opt.cards) {
+          els = Array.prototype.slice.call(scope.querySelectorAll(opt.cards));
+          var shown = new Set(), batch = [];
+          var flush = function () { // IntersectionObserver tidak menjamin urutan: urutkan menurut DOM
+            batch.sort(function (a, b) { return els.indexOf(a) - els.indexOf(b); }).forEach(function (el) {
+              var now = performance.now(); slot = Math.max(now, slot) + 45;
+              M.animate(el, { opacity: [0, 1], y: [18, 0] }, { duration: 0.45, delay: (slot - now) / 1000, ease: [0.2, 0.7, 0.2, 1] });
+            }); batch = [];
+          };
+          els.forEach(function (el) {
+            el.style.opacity = "0";
+            stops.push(M.inView(el, function () {
+              if (shown.has(el)) return; shown.add(el);
+              if (!batch.length) setTimeout(flush, 0); batch.push(el);
+            }, scroller ? { root: scroller } : {}));
+          });
+          var t = setTimeout(function () { // jaring pengaman: jangan ada yang tertinggal tak terlihat
+            els.forEach(function (el) { if (!shown.has(el)) { var r = el.getBoundingClientRect(); if (r.top < root.innerHeight && r.bottom > 0) { shown.add(el); el.style.opacity = ""; } } });
+          }, 1500);
+          stops.push(function () { clearTimeout(t); });
+        }
+        if (G) root.ScrollTrigger.refresh();
+      } catch (e) { els.forEach(function (el) { el.style.opacity = ""; }); }
+    }
+    return { refresh: refresh, lenis: lenis,
+      top: function () { if (lenis) lenis.scrollTo(0, { immediate: true }); else if (scroller) scroller.scrollTop = 0; else root.scrollTo(0, 0); } };
+  }
+  root.MotionKit = { init: init };
+})(window);
+
+</script>
 <script>
 /* Kedai Rintisan: mesin simulasi. Tanpa DOM, bisa dijalankan di Node untuk uji keseimbangan. */
 const Engine = (() => {
@@ -1034,6 +1168,7 @@ const Engine = (() => {
 
     const profit = rev + royalty - cogs - waste - w - fee - ops - s.outlets.reduce((a, o) => a + rent(s, o), 0) / 30;
     const report = { day: s.day, wx: s.wx, rev, cogs, waste, wages: w, fee, ops, royalty, served, lost: R(lost), profit, bills, notes, sold,
+      out: rows.map(x => ({ id: x.o.id, loc: x.o.loc, served: x.o.last.served, lost: x.o.last.lost, vis: x.o.last.vis, closed: x.o.last.closed })),
       cashDelta: s.cash - cashStart, tags: seasonTags(s.day) };
     s.last = report;
     s.hist.push({ d: s.day, rev, profit: R(profit), cash: R(s.cash), rep: R(s.rep * 10) / 10, cust: served });
@@ -1075,6 +1210,434 @@ const Engine = (() => {
 })();
 if (typeof module !== 'undefined') module.exports = Engine;
 
+/* Kedai Rintisan: adegan kanvas. Toko, jalan, cuaca, dan kerumunan pelanggan. */
+const Scene = (() => {
+  'use strict';
+  const LOOK = {
+    gang: { wall: '#ecd2ab', trim: '#8a5a3c', awn: ['#c8452f', '#f6ecd8'], back: 'kampung' },
+    pasar: { wall: '#ddd6b4', trim: '#3f6f5c', awn: ['#2e7d5b', '#f6ecd8'], back: 'tenda' },
+    kampus: { wall: '#d3deea', trim: '#35507a', awn: ['#2b5aa8', '#f3f6fb'], back: 'kampus' },
+    kantor: { wall: '#cfd4dc', trim: '#3d4554', awn: ['#30343f', '#e6e8ec'], back: 'menara' },
+    wisata: { wall: '#f3dfbc', trim: '#9a5a26', awn: ['#e08a1e', '#fff3d6'], back: 'gunung' },
+    mall: { wall: '#e8d9ea', trim: '#6b3f78', awn: ['#8a3f8f', '#f6e9f7'], back: 'mal' },
+  };
+  const NAMES = { gang: 'Gang Kampung', pasar: 'Dekat Pasar', kampus: 'Depan Kampus', kantor: 'Perkantoran', wisata: 'Kota Wisata', mall: 'Kios Mal' };
+  const SKIN = ['#f1c9a5', '#d9a37a', '#b9825a', '#8d5a3b'];
+  const CLOTH = ['#c8452f', '#2b5aa8', '#2e7d5b', '#e0a21e', '#7a4a9a', '#3b4252', '#d9627a', '#3a9aa8', '#f2ead8', '#ef8d3c'];
+  const SKY = [ /* t, atas, bawah */
+    [0, [247, 190, 150], [253, 232, 200]], [0.18, [150, 205, 240], [226, 242, 251]], [0.68, [130, 195, 238], [222, 240, 250]],
+    [0.84, [240, 150, 105], [251, 214, 160]], [1, [38, 46, 92], [112, 92, 140]],
+  ];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+  const rgb = c => 'rgb(' + c.map(Math.round).join(',') + ')';
+  const mix = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pickOf = arr => arr[Math.floor(Math.random() * arr.length)];
+  function rr(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function skyAt(t) {
+    for (let i = 1; i < SKY.length; i++) if (t <= SKY[i][0]) {
+      const k = (t - SKY[i - 1][0]) / (SKY[i][0] - SKY[i - 1][0]);
+      return [mix(SKY[i - 1][1], SKY[i][1], k), mix(SKY[i - 1][2], SKY[i][2], k)];
+    }
+    return [SKY[SKY.length - 1][1], SKY[SKY.length - 1][2]];
+  }
+
+  /* ---------- Gambar toko ---------- */
+  function backdrop(c, kind, cx, base, w, tone) {
+    c.save(); c.globalAlpha = 0.9;
+    const col = (a, b, d) => rgb(mix([a, b, d], tone, 0.35));
+    if (kind === 'kampung') {
+      c.fillStyle = col(196, 150, 120);
+      for (const [dx, bw, bh] of [[-0.62, 0.34, 0.3], [0.5, 0.4, 0.36]]) {
+        const x = cx + dx * w, y = base - bh * w;
+        c.fillRect(x, y, bw * w, bh * w);
+        c.beginPath(); c.moveTo(x - 6, y); c.lineTo(x + bw * w / 2, y - bw * w * 0.3); c.lineTo(x + bw * w + 6, y); c.closePath();
+        c.fillStyle = col(160, 86, 62); c.fill(); c.fillStyle = col(196, 150, 120);
+      }
+    } else if (kind === 'tenda') {
+      for (const [dx, k] of [[-0.6, 0], [0.34, 1]]) {
+        const x = cx + dx * w, bw = 0.3 * w, y = base - 0.3 * w;
+        c.fillStyle = k ? col(232, 170, 60) : col(70, 140, 170);
+        c.beginPath(); c.moveTo(x, y); c.lineTo(x + bw / 2, y - 0.14 * w); c.lineTo(x + bw, y); c.closePath(); c.fill();
+        c.fillStyle = col(120, 110, 100); c.fillRect(x + 2, y, 3, 0.3 * w); c.fillRect(x + bw - 5, y, 3, 0.3 * w);
+      }
+    } else if (kind === 'kampus') {
+      const x = cx - 0.6 * w, y = base - 0.62 * w;
+      c.fillStyle = col(214, 200, 176); c.fillRect(x, y, 1.2 * w, 0.62 * w);
+      c.fillStyle = col(150, 90, 70); c.beginPath(); c.moveTo(x - 8, y); c.lineTo(cx, y - 0.2 * w); c.lineTo(x + 1.2 * w + 8, y); c.closePath(); c.fill();
+      c.fillStyle = col(120, 140, 170);
+      for (let i = 0; i < 6; i++) c.fillRect(x + 0.08 * w + i * 0.19 * w, y + 0.1 * w, 0.09 * w, 0.14 * w);
+    } else if (kind === 'menara') {
+      for (const [dx, bw, bh, k] of [[-0.55, 0.42, 1.25, 0], [0.12, 0.5, 0.95, 1]]) {
+        const x = cx + dx * w, y = base - bh * w;
+        c.fillStyle = k ? col(120, 140, 165) : col(96, 116, 146); c.fillRect(x, y, bw * w, bh * w);
+        c.fillStyle = col(190, 215, 235);
+        for (let r = 0; r < Math.floor(bh * 9); r++) for (let q = 0; q < 4; q++) c.fillRect(x + 0.05 * w + q * (bw * w - 0.08 * w) / 4, y + 0.06 * w + r * 0.105 * w, 0.06 * w, 0.05 * w);
+      }
+    } else if (kind === 'gunung') {
+      c.fillStyle = col(110, 150, 140);
+      c.beginPath(); c.moveTo(cx - 0.8 * w, base); c.lineTo(cx - 0.15 * w, base - 0.95 * w); c.lineTo(cx + 0.3 * w, base - 0.5 * w); c.lineTo(cx + 0.55 * w, base - 0.72 * w); c.lineTo(cx + 0.9 * w, base); c.closePath(); c.fill();
+      c.fillStyle = col(240, 244, 240);
+      c.beginPath(); c.moveTo(cx - 0.26 * w, base - 0.79 * w); c.lineTo(cx - 0.15 * w, base - 0.95 * w); c.lineTo(cx - 0.05 * w, base - 0.84 * w); c.closePath(); c.fill();
+      const px = cx + 0.6 * w; /* pohon kelapa */
+      c.strokeStyle = col(110, 80, 50); c.lineWidth = Math.max(2, 0.025 * w); c.beginPath(); c.moveTo(px, base); c.quadraticCurveTo(px + 0.05 * w, base - 0.35 * w, px - 0.02 * w, base - 0.66 * w); c.stroke();
+      c.strokeStyle = col(50, 130, 80); c.lineWidth = Math.max(2, 0.03 * w);
+      for (let a = 0; a < 6; a++) { const an = -Math.PI + a * Math.PI / 5; c.beginPath(); c.moveTo(px - 0.02 * w, base - 0.66 * w); c.quadraticCurveTo(px - 0.02 * w + Math.cos(an) * 0.12 * w, base - 0.76 * w, px - 0.02 * w + Math.cos(an) * 0.22 * w, base - 0.6 * w + Math.sin(an) * 0.06 * w); c.stroke(); }
+    } else if (kind === 'mal') {
+      const x = cx - 0.66 * w, y = base - 1.05 * w;
+      c.fillStyle = col(176, 150, 186); rr(c, x, y, 1.32 * w, 1.05 * w, 6); c.fill();
+      c.fillStyle = col(200, 222, 238); c.fillRect(x + 0.1 * w, y + 0.26 * w, 1.12 * w, 0.2 * w);
+      c.fillStyle = col(255, 250, 240); c.font = '800 ' + Math.round(0.13 * w) + 'px "Bricolage Grotesque",sans-serif'; c.textAlign = 'center'; c.fillText('PLAZA', cx, y + 0.18 * w);
+    }
+    c.restore();
+  }
+  /* o: {loc, equip, dekor, staff, own, closed}. x = tengah, base = garis tanah, w = lebar toko. */
+  function shop(c, o, brand, x, base, w, time, steamT) {
+    const L = LOOK[o.loc] || LOOK.gang, h = w * 0.5, x0 = x - w / 2, y0 = base - h;
+    /* dinding */
+    c.fillStyle = L.wall; c.fillRect(x0, y0, w, h);
+    c.fillStyle = L.trim; c.fillRect(x0, base - h * 0.14, w, h * 0.14);
+    /* atap + papan nama */
+    const signH = w * 0.15, sy = y0 - signH - w * 0.02;
+    c.fillStyle = L.trim;
+    if (o.loc === 'gang' || o.loc === 'wisata') { c.beginPath(); c.moveTo(x0 - w * 0.06, y0); c.lineTo(x0 + w * 0.12, sy - w * 0.1); c.lineTo(x0 + w * 0.88, sy - w * 0.1); c.lineTo(x0 + w * 1.06, y0); c.closePath(); c.fill(); }
+    else c.fillRect(x0 - w * 0.02, sy - w * 0.03, w * 1.04, signH + w * 0.07);
+    c.fillStyle = '#20262c'; rr(c, x0 + w * 0.1, sy, w * 0.8, signH, 4); c.fill();
+    let fs = Math.round(signH * 0.62);
+    c.font = '800 ' + fs + 'px "Bricolage Grotesque","Arial Narrow",sans-serif';
+    while (fs > 6 && c.measureText(brand).width > w * 0.6) { fs--; c.font = '800 ' + fs + 'px "Bricolage Grotesque","Arial Narrow",sans-serif'; }
+    c.fillStyle = '#fbf3df'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(brand, x + w * 0.05, sy + signH / 2 + 1);
+    /* cangkir di papan nama + uap */
+    const cx = x0 + w * 0.17, cy = sy + signH * 0.56, cr = signH * 0.2;
+    c.fillStyle = '#fbf3df'; c.fillRect(cx - cr, cy - cr * 0.7, cr * 2, cr * 1.5);
+    c.strokeStyle = '#fbf3df'; c.lineWidth = 1.5; c.beginPath(); c.arc(cx + cr * 1.15, cy, cr * 0.55, -1.3, 1.3); c.stroke();
+    if (!o.closed) {
+      c.strokeStyle = 'rgba(255,255,255,.75)'; c.lineWidth = 1.4;
+      for (let i = 0; i < 2; i++) { const ph = steamT * 2 + i * 1.7, ox = cx - cr * 0.5 + i * cr; c.beginPath(); c.moveTo(ox, cy - cr); c.quadraticCurveTo(ox + Math.sin(ph) * 3, cy - cr * 1.9, ox + Math.sin(ph + 1) * 2, cy - cr * 2.7); c.stroke(); }
+    }
+    /* jendela */
+    const wx0 = x0 + w * 0.07, wy0 = y0 + h * 0.3, ww = w * 0.52, wh = h * 0.46;
+    c.fillStyle = '#3a4a52'; c.fillRect(wx0 - 2, wy0 - 2, ww + 4, wh + 4);
+    c.fillStyle = o.closed ? '#59636a' : '#f6d48a'; c.fillRect(wx0, wy0, ww, wh);
+    if (!o.closed) {
+      c.fillStyle = 'rgba(70,45,30,.85)'; /* meja bar */
+      c.fillRect(wx0, wy0 + wh * 0.68, ww, wh * 0.32);
+      const n = Math.min(3, (o.staff || 0) + (o.own ? 1 : 0));
+      for (let i = 0; i < n; i++) { const bx = wx0 + ww * (0.22 + i * 0.26), by = wy0 + wh * 0.5; c.fillStyle = '#5b3a2a'; c.beginPath(); c.arc(bx, by - wh * 0.12, wh * 0.1, 0, 7); c.fill(); c.fillStyle = '#2f5d4a'; c.fillRect(bx - wh * 0.13, by, wh * 0.26, wh * 0.2); }
+      if (o.equip >= 1) { c.fillStyle = '#c9ced4'; rr(c, wx0 + ww * 0.76, wy0 + wh * 0.4, ww * 0.2, wh * 0.28, 2); c.fill(); c.fillStyle = '#7b848c'; c.fillRect(wx0 + ww * 0.8, wy0 + wh * 0.56, ww * 0.03, wh * 0.12); c.fillRect(wx0 + ww * 0.89, wy0 + wh * 0.56, ww * 0.03, wh * 0.12); }
+      if (o.equip >= 3) { c.fillStyle = '#8a5a3c'; c.fillRect(wx0 + ww * 0.04, wy0 + wh * 0.12, ww * 0.34, 2); for (let i = 0; i < 4; i++) { c.fillStyle = ['#c8452f', '#e0a21e', '#2e7d5b', '#f2ead8'][i]; c.fillRect(wx0 + ww * (0.06 + i * 0.08), wy0 + wh * 0.02, ww * 0.05, wh * 0.1); } }
+    } else { c.strokeStyle = '#444d54'; c.lineWidth = 1; for (let i = 1; i < 7; i++) { c.beginPath(); c.moveTo(wx0, wy0 + wh * i / 7); c.lineTo(wx0 + ww, wy0 + wh * i / 7); c.stroke(); } }
+    c.strokeStyle = '#3a4a52'; c.lineWidth = 2; c.beginPath(); c.moveTo(wx0 + ww / 2, wy0); c.lineTo(wx0 + ww / 2, wy0 + wh * 0.68); c.stroke();
+    /* pintu */
+    const dx = x0 + w * 0.68, dw = w * 0.22, dy = y0 + h * 0.24, dh = h * 0.76;
+    c.fillStyle = o.closed ? '#59636a' : '#6b4630'; c.fillRect(dx, dy, dw, dh);
+    c.fillStyle = o.closed ? '#59636a' : '#f6d48a'; c.fillRect(dx + dw * 0.14, dy + dh * 0.1, dw * 0.72, dh * 0.4);
+    c.fillStyle = o.closed ? '#b3362a' : '#1f7446'; rr(c, dx + dw * 0.1, dy + dh * 0.58, dw * 0.8, Math.max(8, h * 0.13), 2); c.fill();
+    c.fillStyle = '#fff'; c.font = '700 ' + Math.max(6, Math.round(h * 0.085)) + 'px "IBM Plex Mono",monospace'; c.fillText(o.closed ? 'TUTUP' : 'BUKA', dx + dw / 2, dy + dh * 0.58 + Math.max(8, h * 0.13) / 2 + 0.5);
+    /* awning bergaris */
+    const ay = y0 + h * 0.06, ah = h * 0.2, n = 9, sw = (w * 1.04) / n;
+    for (let i = 0; i < n; i++) {
+      c.fillStyle = L.awn[i % 2]; const ax = x0 - w * 0.02 + i * sw;
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax + sw, ay); c.lineTo(ax + sw, ay + ah * 0.75); c.arc(ax + sw / 2, ay + ah * 0.75, sw / 2, 0, Math.PI); c.closePath(); c.fill();
+    }
+    /* dekor */
+    if (o.dekor >= 1) for (const px of [x0 + w * 0.02, x0 + w * 0.63]) { c.fillStyle = '#a5562f'; c.fillRect(px - w * 0.025, base - h * 0.16, w * 0.05, h * 0.16); c.fillStyle = '#3f8a57'; c.beginPath(); c.arc(px, base - h * 0.24, w * 0.045, 0, 7); c.arc(px - w * 0.025, base - h * 0.18, w * 0.03, 0, 7); c.arc(px + w * 0.025, base - h * 0.18, w * 0.03, 0, 7); c.fill(); }
+    if (o.dekor >= 2) {
+      const night = smooth(0.7, 0.95, time);
+      for (let i = 0; i <= 10; i++) { const lx = x0 + w * i / 10, ly = ay + ah * 1.25 + Math.sin(i / 10 * Math.PI) * h * 0.07; c.fillStyle = ['#ffd45e', '#ff8f6b', '#8fd3ff'][i % 3]; c.globalAlpha = 0.65 + 0.35 * night; c.beginPath(); c.arc(lx, ly, Math.max(1.6, w * 0.011), 0, 7); c.fill(); }
+      c.globalAlpha = 1;
+    }
+    c.textBaseline = 'alphabetic';
+    return { door: dx + dw / 2, win: [wx0, wy0, ww, wh], doorR: [dx + dw * 0.14, dy + dh * 0.1, dw * 0.72, dh * 0.4] };
+  }
+  function person(c, p, base, u, rain) {
+    const x = p.x, y = base + p.lane, s = u * p.size, sw = Math.sin(p.phase) * (p.still ? 0 : 1);
+    c.save(); c.globalAlpha = clamp(p.alpha, 0, 1);
+    c.fillStyle = 'rgba(0,0,0,.14)'; c.beginPath(); c.ellipse(x, y, 7 * s, 2.2 * s, 0, 0, 7); c.fill();
+    if (p.kind === 'ojol') {
+      c.fillStyle = '#2b2f36'; c.beginPath(); c.arc(x - 9 * s, y - 4 * s, 4.5 * s, 0, 7); c.arc(x + 9 * s, y - 4 * s, 4.5 * s, 0, 7); c.fill();
+      c.fillStyle = '#3b4252'; rr(c, x - 10 * s, y - 11 * s, 20 * s, 6 * s, 2 * s); c.fill();
+      c.fillStyle = '#1f9d55'; rr(c, x - 5 * s, y - 22 * s, 9 * s, 12 * s, 3 * s); c.fill();
+      c.fillStyle = '#1f9d55'; c.fillRect(x - 12 * s * p.dir - 4 * s, y - 20 * s, 8 * s, 8 * s);
+      c.fillStyle = '#20262c'; c.beginPath(); c.arc(x, y - 26 * s, 4.6 * s, 0, 7); c.fill();
+      c.restore(); return;
+    }
+    c.strokeStyle = '#2d3138'; c.lineWidth = 2.4 * s; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(x - 2 * s, y - 9 * s); c.lineTo(x - 2 * s + sw * 3.5 * s, y); c.moveTo(x + 2 * s, y - 9 * s); c.lineTo(x + 2 * s - sw * 3.5 * s, y); c.stroke();
+    c.fillStyle = p.cloth; rr(c, x - 5 * s, y - 22 * s, 10 * s, 14 * s, 4 * s); c.fill();
+    c.fillStyle = p.skin; c.beginPath(); c.arc(x, y - 26.5 * s, 4.6 * s, 0, 7); c.fill();
+    c.fillStyle = p.hair; c.beginPath(); c.arc(x, y - 27.5 * s, 4.7 * s, Math.PI, 0); c.fill();
+    if (p.cup) { c.fillStyle = '#fffdf6'; c.fillRect(x + p.dir * 5.5 * s - 1.8 * s, y - 18 * s, 3.8 * s, 5.5 * s); c.fillStyle = '#8a5a3c'; c.fillRect(x + p.dir * 5.5 * s - 1.8 * s, y - 16.4 * s, 3.8 * s, 1.6 * s); }
+    if (rain) { c.fillStyle = p.umb; c.beginPath(); c.arc(x, y - 33 * s, 11 * s, Math.PI, 0); c.closePath(); c.fill(); c.strokeStyle = '#2d3138'; c.lineWidth = 1.2 * s; c.beginPath(); c.moveTo(x, y - 33 * s); c.lineTo(x, y - 20 * s); c.stroke(); }
+    if (p.angry) { c.fillStyle = '#b3362a'; c.font = '800 ' + Math.round(13 * s) + 'px sans-serif'; c.textAlign = 'center'; c.fillText('!', x, y - (rain ? 46 : 35) * s); }
+    c.restore();
+  }
+
+  /* ---------- Satu adegan hidup ---------- */
+  function create() {
+    const st = { cv: null, c: null, W: 0, H: 0, dpr: 1, data: null, people: [], floats: [], queue: [], t: 0.3, mode: 'ambient', daySec: 5,
+      clouds: Array.from({ length: 5 }, (_, i) => ({ x: Math.random(), y: 0.08 + Math.random() * 0.28, s: 0.6 + Math.random() * 0.8, v: 0.004 + Math.random() * 0.006 })),
+      rain: Array.from({ length: 90 }, () => ({ x: Math.random(), y: Math.random(), v: 0.9 + Math.random() * 0.6 })),
+      steam: 0, acc: 0, onSale: null, raf: 0, last: 0, doors: [] };
+    function attach(cv) {
+      st.cv = cv; st.c = cv.getContext('2d'); resize();
+    }
+    function resize() {
+      if (!st.cv) return;
+      const r = st.cv.getBoundingClientRect(); if (!r.width) return;
+      st.dpr = Math.min(2, window.devicePixelRatio || 1); st.W = r.width; st.H = r.height;
+      st.cv.width = Math.round(r.width * st.dpr); st.cv.height = Math.round(r.height * st.dpr);
+    }
+    function layout() {
+      const n = Math.max(1, st.data.outlets.length), slot = Math.min(st.H * 1.25, 420, (st.W - 24) / n), x0 = (st.W - slot * n) / 2;
+      return { n, slot, x0, sw: slot * 0.8, base: st.H - Math.max(40, st.H * 0.2), u: clamp(slot / 250, 0.62, 1.3) };
+    }
+    function newPerson(kind, i, L) {
+      const side = Math.random() < 0.5 ? -1 : 1, door = st.doors[i] != null ? st.doors[i] : st.W / 2;
+      const v = st.mode === 'day' ? L.slot * 0.8 / (0.15 * st.daySec) : 46;
+      const p = { kind, i, x: 0, dir: -side, lane: rand(5, 26), size: rand(0.88, 1.08), phase: Math.random() * 6, alpha: 0, v: v * rand(0.85, 1.2),
+        skin: pickOf(SKIN), cloth: pickOf(CLOTH), hair: pickOf(['#20262c', '#3b2a22', '#5b3a2a', '#20262c']), umb: pickOf(['#c8452f', '#2b5aa8', '#e0a21e', '#2e7d5b']), state: 'in', wait: 0, cup: false, angry: false, still: false, door };
+      if (kind === 'pass') { p.x = side < 0 ? -20 : st.W + 20; p.v = st.mode === 'day' ? st.W / (0.4 * st.daySec) : 52; p.state = 'pass'; p.alpha = 1; }
+      else if (kind === 'ojol') { p.x = side < 0 ? -30 : st.W + 30; p.lane = rand(30, 38); p.v = st.mode === 'day' ? st.W / (0.16 * st.daySec) : 170; p.size = 1; }
+      else p.x = clamp(door + side * L.slot * rand(0.6, 1.15), -20, st.W + 20);
+      st.people.push(p);
+    }
+    /* data: {brand, wx, ojol, outlets:[{loc,equip,dekor,staff,own,closed,served,lost,vis}]} */
+    function setData(d, mode, daySec) {
+      st.data = d; st.mode = mode; st.daySec = daySec || 5; st.queue = [];
+      if (mode === 'day') {
+        st.people = []; st.floats = []; st.t = 0;
+        const dens = daySec < 2 ? 0.6 : 1, fig = x => x <= 0 ? 0 : clamp(Math.round(Math.sqrt(x) * 2.8 * dens), 1, Math.round(44 * dens));
+        d.outlets.forEach((o, i) => {
+          for (let k = fig(o.served); k--;) st.queue.push({ t: rand(0.02, 0.78), kind: 'buy', i });
+          for (let k = fig(o.lost); k--;) st.queue.push({ t: rand(0.2, 0.78), kind: 'lost', i });
+          if (d.ojol && !o.closed) for (let k = Math.round(2 * dens); k--;) st.queue.push({ t: rand(0.1, 0.8), kind: 'ojol', i });
+        });
+        const tv = d.outlets.reduce((a, o) => a + (o.vis || 0), 0);
+        for (let k = clamp(Math.round(Math.sqrt(tv) * 1.4 * dens), 3, 26); k--;) st.queue.push({ t: rand(0, 0.8), kind: 'pass', i: 0 });
+        st.queue.sort((a, b) => a.t - b.t);
+      }
+    }
+    function step(dt) {
+      const d = st.data; if (!d || !st.W) return;
+      const L = layout(), rain = d.wx === 'hujan';
+      st.steam += dt;
+      for (const cl of st.clouds) { cl.x += cl.v * dt * (st.mode === 'day' ? 6 : 1); if (cl.x > 1.2) cl.x = -0.2; }
+      for (const r of st.rain) { r.y += r.v * dt * 1.6; r.x -= dt * 0.12; if (r.y > 1) { r.y = -0.05; r.x = Math.random() * 1.1; } }
+      if (st.mode === 'day') { while (st.queue.length && st.queue[0].t <= st.t) { const q = st.queue.shift(); newPerson(q.kind, q.i, L); } }
+      else {
+        st.acc += dt;
+        if (st.acc > 0.32 && st.people.length < 40) {
+          st.acc = 0;
+          d.outlets.forEach((o, i) => { if (!o.closed && Math.random() < clamp(0.1 + (o.served || 20) / 500, 0.1, 0.55)) newPerson('buy', i, L); });
+          if (Math.random() < 0.45) newPerson('pass', 0, L);
+          if (d.ojol && Math.random() < 0.05) newPerson('ojol', Math.floor(Math.random() * d.outlets.length), L);
+        }
+      }
+      const hold = st.mode === 'day' ? 0.045 * st.daySec : 1.6;
+      for (const p of st.people) {
+        p.phase += dt * 11; p.still = false;
+        const go = tx => { const dx = tx - p.x, m = p.v * dt; p.dir = dx >= 0 ? 1 : -1; if (Math.abs(dx) <= m) { p.x = tx; return true; } p.x += p.dir * m; return false; };
+        if (p.state === 'pass') { p.x += p.dir * p.v * dt; if (p.x < -30 || p.x > st.W + 30) p.dead = true; }
+        else if (p.state === 'in') {
+          p.alpha = Math.min(1, p.alpha + dt * 5);
+          const stopAt = p.kind === 'lost' ? p.door - p.dir * 16 * L.u : p.kind === 'ojol' ? p.door + 4 : p.door;
+          if (go(stopAt)) { p.state = 'hold'; p.wait = hold * (p.kind === 'buy' ? rand(0.7, 1.3) : 0.8); if (p.kind === 'lost') p.angry = true; }
+        } else if (p.state === 'hold') {
+          p.still = true; p.wait -= dt;
+          if (p.kind === 'buy') p.alpha = Math.max(0, p.alpha - dt * 9);
+          if (p.wait <= 0) {
+            p.state = 'out'; p.dir = p.kind === 'lost' ? -p.dir : (Math.random() < 0.5 ? -1 : 1);
+            if (p.kind === 'buy') { p.cup = true; st.floats.push({ x: p.door, y: 0, life: 1 }); if (st.onSale) st.onSale(); }
+            if (p.kind === 'ojol') { st.floats.push({ x: p.door, y: 0, life: 1 }); if (st.onSale) st.onSale(); }
+            p.tx = p.kind === 'ojol' ? (p.dir > 0 ? st.W + 40 : -40) : clamp(p.door + p.dir * L.slot * rand(0.6, 1.1), -30, st.W + 30);
+          }
+        } else if (p.state === 'out') {
+          const dist = Math.abs(p.tx - p.x);
+          p.alpha = p.kind === 'ojol' ? 1 : Math.min(p.alpha + dt * 6, dist / (L.slot * 0.18));
+          if (go(p.tx)) p.dead = true;
+        }
+      }
+      st.people = st.people.filter(p => !p.dead);
+      for (const f of st.floats) { f.life -= dt * (st.mode === 'day' ? Math.max(1.2, 4 / st.daySec) : 1); f.y -= dt * 34; }
+      st.floats = st.floats.filter(f => f.life > 0);
+    }
+    function draw() {
+      const c = st.c, d = st.data; if (!c || !d || !st.W) return;
+      const W = st.W, H = st.H, L = layout(), t = st.t, wx = d.wx;
+      c.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+      /* langit */
+      let [top, bot] = skyAt(t);
+      const grey = wx === 'hujan' ? 0.68 : wx === 'mendung' ? 0.45 : 0;
+      if (grey) { top = mix(top, [120, 130, 140], grey); bot = mix(bot, [176, 184, 190], grey); }
+      const g = c.createLinearGradient(0, 0, 0, L.base); g.addColorStop(0, rgb(top)); g.addColorStop(1, rgb(bot));
+      c.fillStyle = g; c.fillRect(0, 0, W, H);
+      const night = smooth(0.8, 1, t);
+      /* matahari / bulan */
+      const sx = W * (0.08 + 0.84 * t), sy = L.base * (0.72 - Math.sin(Math.PI * clamp(t / 0.92, 0, 1)) * 0.56);
+      if (!grey || wx === 'mendung') {
+        const R = wx === 'terik' ? 24 : 18;
+        if (wx === 'terik' && night < 0.5) { c.strokeStyle = 'rgba(255,214,90,.55)'; c.lineWidth = 3; for (let a = 0; a < 10; a++) { const an = a * Math.PI / 5 + st.steam * 0.3; c.beginPath(); c.moveTo(sx + Math.cos(an) * (R + 6), sy + Math.sin(an) * (R + 6)); c.lineTo(sx + Math.cos(an) * (R + 17), sy + Math.sin(an) * (R + 17)); c.stroke(); } }
+        c.globalAlpha = grey ? 0.5 : 1; c.fillStyle = rgb(mix([255, 208, 80], [255, 130, 80], smooth(0.7, 0.9, t))); c.beginPath(); c.arc(sx, sy, R, 0, 7); c.fill(); c.globalAlpha = 1;
+      }
+      if (night > 0.2) { c.globalAlpha = night; c.fillStyle = '#f4f1e0'; c.beginPath(); c.arc(W * 0.16, L.base * 0.2, 13, 0, 7); c.fill(); c.fillStyle = rgb(top); c.beginPath(); c.arc(W * 0.16 + 6, L.base * 0.2 - 3, 11, 0, 7); c.fill();
+        c.fillStyle = '#fff'; for (let i = 0; i < 24; i++) c.fillRect((i * 97.3) % W, (i * 53.7) % (L.base * 0.55), 1.5, 1.5); c.globalAlpha = 1; }
+      /* awan */
+      c.fillStyle = grey ? 'rgba(225,228,232,.92)' : 'rgba(255,255,255,' + (0.85 - night * 0.5) + ')';
+      const nCl = wx === 'terik' ? 1 : grey ? 5 : 3;
+      for (let i = 0; i < nCl; i++) { const cl = st.clouds[i], x = cl.x * W, y = cl.y * L.base, s = cl.s * (grey ? 1.5 : 1) * 20; c.beginPath(); c.arc(x, y, s, 0, 7); c.arc(x + s * 1.1, y + s * 0.2, s * 0.8, 0, 7); c.arc(x - s * 1.1, y + s * 0.25, s * 0.7, 0, 7); c.arc(x + s * 0.2, y - s * 0.5, s * 0.75, 0, 7); c.fill(); }
+      /* latar per lokasi */
+      const tone = bot;
+      d.outlets.forEach((o, i) => backdrop(c, (LOOK[o.loc] || LOOK.gang).back, L.x0 + L.slot * (i + 0.5), L.base, L.sw, tone));
+      /* tanah */
+      c.fillStyle = '#c9c2b2'; c.fillRect(0, L.base, W, 30);
+      c.fillStyle = '#b1ab9c'; c.fillRect(0, L.base + 28, W, 3);
+      c.fillStyle = wx === 'hujan' ? '#4a5058' : '#5a5f66'; c.fillRect(0, L.base + 31, W, H - L.base - 31);
+      c.fillStyle = 'rgba(255,255,255,.55)'; for (let x = 10; x < W; x += 46) c.fillRect(x, L.base + 31 + (H - L.base - 31) / 2 - 1, 22, 2);
+      /* toko */
+      const hot = [];
+      st.doors = [];
+      d.outlets.forEach((o, i) => { const r = shop(c, o, d.brand, L.x0 + L.slot * (i + 0.5), L.base, L.sw, t, st.steam + i); st.doors[i] = r.door; if (!o.closed) hot.push(r);
+        c.fillStyle = 'rgba(32,38,44,.78)'; c.font = '600 ' + Math.round(clamp(L.slot * 0.052, 9, 12)) + 'px "IBM Plex Sans",sans-serif'; c.textAlign = 'center'; c.fillText(NAMES[o.loc] || '', L.x0 + L.slot * (i + 0.5), L.base + 21); });
+      /* orang */
+      const ppl = st.people.slice().sort((a, b) => a.lane - b.lane);
+      for (const p of ppl) person(c, p, L.base, L.u, wx === 'hujan' && p.kind !== 'ojol');
+      /* gelap malam + lampu */
+      if (night > 0.02) { c.fillStyle = 'rgba(18,22,58,' + 0.42 * night + ')'; c.fillRect(0, 0, W, H);
+        c.fillStyle = 'rgba(255,214,120,' + 0.5 * night + ')'; for (const r of hot) { c.fillRect(r.win[0], r.win[1], r.win[2], r.win[3] * 0.68); c.fillRect(r.doorR[0], r.doorR[1], r.doorR[2], r.doorR[3]); } }
+      /* hujan */
+      if (wx === 'hujan') { c.strokeStyle = 'rgba(220,235,250,.6)'; c.lineWidth = 1.2; c.beginPath(); for (const r of st.rain) { const x = r.x * W * 1.1, y = r.y * H; c.moveTo(x, y); c.lineTo(x - 5, y + 13); } c.stroke(); }
+      /* uang melayang */
+      c.textAlign = 'center'; c.font = '700 ' + Math.round(12 * L.u + 2) + 'px "IBM Plex Mono",monospace';
+      for (const f of st.floats) { c.globalAlpha = clamp(f.life * 1.6, 0, 1); c.fillStyle = '#145c36'; c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 3; const y = L.base - L.sw * 0.42 + f.y; c.strokeText('+Rp', f.x, y); c.fillText('+Rp', f.x, y); }
+      c.globalAlpha = 1;
+    }
+    function loop(ts) {
+      st.raf = requestAnimationFrame(loop);
+      const dt = Math.min(0.05, (ts - (st.last || ts)) / 1000); st.last = ts;
+      if (!st.cv || !st.cv.isConnected || document.hidden) return;
+      if (st.cv.width !== Math.round(st.cv.getBoundingClientRect().width * st.dpr)) resize();
+      step(dt); draw();
+    }
+    return { attach, resize, setData, draw, step,
+      start() { if (!st.raf) { st.last = 0; st.raf = requestAnimationFrame(loop); } },
+      stop() { cancelAnimationFrame(st.raf); st.raf = 0; },
+      set time(v) { st.t = v; }, get time() { return st.t; },
+      set onSale(f) { st.onSale = f; },
+      still() { step(0.016); draw(); } };
+  }
+  /* Gambar diam satu toko untuk kartu outlet. */
+  function thumb(cv, o, brand, wx) {
+    const s = create(); s.attach(cv); s.setData({ brand, wx: wx || 'cerah', outlets: [o], ojol: false }, 'ambient'); s.time = 0.35; s.draw();
+  }
+  return { create, thumb };
+})();
+
+/* Kedai Rintisan: musik dan efek suara, disintesis dengan Web Audio (tanpa berkas audio). */
+const Sound = (() => {
+  'use strict';
+  const PKEY = 'kedai-rintisan-prefs';
+  const prefs = { music: true, sfx: true, vol: 0.6, anim: 'penuh' };
+  try { Object.assign(prefs, JSON.parse(localStorage.getItem(PKEY)) || {}); } catch (e) { /* abaikan */ }
+  let ctx = null, master, musicBus, sfxBus, delay, noiseBuf, timer = 0, nextT = 0, stepN = 0, intensity = 0, lastChing = 0;
+  const BPM = 94, STEP = 60 / BPM / 4;
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+  const CH = { C: [60, 64, 67, 71], Am: [57, 60, 64, 67], Dm: [62, 65, 69, 72], G: [55, 59, 62, 65], F: [53, 57, 60, 64], Em: [52, 55, 59, 62] };
+  const ROOT = { C: 36, Am: 33, Dm: 38, G: 31, F: 29, Em: 28 };
+  const SEC = { A: ['C', 'Am', 'Dm', 'G'], B: ['F', 'Em', 'Dm', 'G'] };
+  const MEL = {
+    A: [[[0, 76, 2], [3, 79, 2], [6, 76, 2], [8, 72, 4], [14, 74, 2]], [[0, 72, 3], [4, 69, 2], [8, 67, 4], [12, 69, 2], [14, 72, 2]],
+      [[0, 74, 2], [3, 77, 2], [6, 74, 2], [8, 72, 2], [10, 69, 4]], [[0, 71, 3], [4, 74, 2], [8, 79, 3], [12, 77, 2], [14, 74, 2]]],
+    A2: [[[0, 79, 2], [2, 76, 2], [6, 72, 2], [8, 76, 4], [14, 79, 2]], [[0, 81, 3], [4, 79, 2], [8, 76, 4], [14, 72, 2]],
+      [[0, 77, 2], [3, 74, 2], [6, 77, 2], [8, 81, 3], [12, 77, 2]], [[0, 79, 4], [6, 74, 2], [8, 71, 3], [12, 67, 4]]],
+    B: [[[0, 81, 3], [4, 79, 2], [6, 77, 2], [8, 76, 4], [14, 72, 2]], [[0, 79, 3], [4, 76, 2], [8, 74, 3], [12, 71, 2], [14, 74, 2]],
+      [[0, 77, 2], [2, 74, 2], [4, 72, 2], [8, 69, 4], [12, 72, 2]], [[0, 74, 4], [6, 71, 2], [8, 67, 4], [12, 71, 2], [14, 74, 2]]],
+  };
+  const FORM = [['A', null], ['A', 'A'], ['B', 'B'], ['A', 'A2'], ['A', 'A'], ['A', 'A2'], ['B', 'B'], ['A', 'A']];
+  const COMP = [0, 3, 6, 10, 12], RIM = [0, 3, 6, 10, 12], BASS = [[0, 0], [6, 7], [8, 0], [14, 7]];
+
+  function save() { try { localStorage.setItem(PKEY, JSON.stringify(prefs)); } catch (e) { /* abaikan */ } }
+  function ensure() {
+    if (ctx) return ctx;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain(); master.gain.value = prefs.vol; master.connect(ctx.destination);
+      musicBus = ctx.createGain(); musicBus.gain.value = prefs.music ? 0.5 : 0; musicBus.connect(master);
+      sfxBus = ctx.createGain(); sfxBus.gain.value = 0.6; sfxBus.connect(master);
+      delay = ctx.createDelay(1); delay.delayTime.value = STEP * 3; const fb = ctx.createGain(); fb.gain.value = 0.28; const dl = ctx.createBiquadFilter(); dl.type = 'lowpass'; dl.frequency.value = 2200;
+      delay.connect(dl); dl.connect(fb); fb.connect(delay); dl.connect(musicBus);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { ctx = null; }
+    return ctx;
+  }
+  function tone(bus, type, f, t, dur, vel, opt) {
+    opt = opt || {};
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t);
+    if (opt.to) o.frequency.exponentialRampToValueAtTime(opt.to, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vel, t + (opt.att || 0.008)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); let out = g;
+    if (opt.lp) { const f2 = ctx.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = opt.lp; g.connect(f2); out = f2; }
+    out.connect(bus); if (opt.send) { const s = ctx.createGain(); s.gain.value = opt.send; out.connect(s); s.connect(delay); }
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  function noise(bus, t, dur, vel, hp) {
+    const s = ctx.createBufferSource(), g = ctx.createGain(), f = ctx.createBiquadFilter(); s.buffer = noiseBuf; f.type = 'highpass'; f.frequency.value = hp;
+    g.gain.setValueAtTime(vel, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(f); f.connect(g); g.connect(bus); s.start(t); s.stop(t + dur + 0.02);
+  }
+  function schedule(n, t) {
+    const bar = Math.floor(n / 16), s = n % 16, sec = FORM[Math.floor(bar / 4) % FORM.length], chord = SEC[sec[0]][bar % 4];
+    const sw = s % 2 ? STEP * 0.14 : 0; t += sw;
+    if (COMP.includes(s)) CH[chord].forEach((m, i) => { tone(musicBus, 'sine', hz(m), t + i * 0.006, s === 0 ? 0.9 : 0.34, 0.085, { lp: 2400 }); tone(musicBus, 'triangle', hz(m + 12), t + i * 0.006, 0.22, 0.02, { lp: 3000 }); });
+    for (const [bs, iv] of BASS) if (bs === s) { tone(musicBus, 'triangle', hz(ROOT[chord] + iv + 12), t, 0.42, 0.24, { lp: 700 }); tone(musicBus, 'sine', hz(ROOT[chord] + iv), t, 0.42, 0.22); }
+    if (sec[1]) for (const [ms, m, len] of MEL[sec[1]][bar % 4]) if (ms === s) { tone(musicBus, 'triangle', hz(m), t, len * STEP * 1.05 + 0.1, 0.11, { lp: 3200, att: 0.012, send: 0.35 }); tone(musicBus, 'sine', hz(m + 12), t, len * STEP * 0.6, 0.025, {}); }
+    if (s % 2 === 0) noise(musicBus, t, 0.035, s % 4 === 2 ? 0.07 : 0.035, 7500);
+    else if (intensity > 0) noise(musicBus, t, 0.025, 0.03, 9000);
+    if (intensity > 0) {
+      if (s === 0 || s === 8 || s === 11) tone(musicBus, 'sine', 130, t, 0.16, 0.5, { to: 44, att: 0.003 });
+      if (RIM.includes(s)) { tone(musicBus, 'triangle', 820, t, 0.03, 0.12, { att: 0.002 }); noise(musicBus, t, 0.02, 0.05, 3000); }
+    } else if (s === 0) tone(musicBus, 'sine', 110, t, 0.14, 0.22, { to: 46, att: 0.003 });
+  }
+  function tick() {
+    if (!ctx) return;
+    while (nextT < ctx.currentTime + 0.14) { if (prefs.music) schedule(stepN, nextT); stepN++; nextT += STEP; }
+  }
+  function startMusic() {
+    if (!ensure() || timer) return;
+    nextT = ctx.currentTime + 0.08; timer = setInterval(tick, 45);
+  }
+  /* Panggil dari handler klik: peramban hanya mengizinkan audio setelah interaksi. */
+  function unlock() {
+    if (!ensure()) return;
+    try { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); } catch (e) { /* ditolak */ }
+    startMusic();
+  }
+  const SFX = {
+    tick: t => tone(sfxBus, 'triangle', 1400, t, 0.04, 0.12, { att: 0.002 }),
+    pop: t => tone(sfxBus, 'sine', 320, t, 0.12, 0.3, { to: 720, att: 0.004 }),
+    ching: t => { tone(sfxBus, 'sine', 1975, t, 0.3, 0.13, { att: 0.002 }); tone(sfxBus, 'sine', 2637, t + 0.05, 0.35, 0.12, { att: 0.002 }); },
+    bell: t => { tone(sfxBus, 'sine', 1318, t, 0.5, 0.16); tone(sfxBus, 'sine', 1760, t + 0.12, 0.6, 0.14); },
+    event: t => { tone(sfxBus, 'triangle', hz(64), t, 0.22, 0.2, { lp: 2500 }); tone(sfxBus, 'triangle', hz(70), t + 0.14, 0.4, 0.2, { lp: 2500 }); },
+    good: t => [72, 76, 79].forEach((m, i) => tone(sfxBus, 'triangle', hz(m), t + i * 0.08, 0.3, 0.18, { lp: 3500 })),
+    bad: t => [67, 63, 58].forEach((m, i) => tone(sfxBus, 'triangle', hz(m), t + i * 0.12, 0.4, 0.2, { lp: 1800 })),
+    win: t => [72, 76, 79, 84, 79, 84, 88].forEach((m, i) => tone(sfxBus, 'triangle', hz(m), t + i * 0.11, 0.5, 0.2, { lp: 4000 })),
+    lose: t => [60, 58, 55, 51, 48].forEach((m, i) => tone(sfxBus, 'sawtooth', hz(m), t + i * 0.2, 0.5, 0.12, { lp: 900 })),
+    print: t => { for (let i = 0; i < 9; i++) noise(sfxBus, t + i * 0.07, 0.03, 0.09, 2500); },
+  };
+  function sfx(name) {
+    if (!prefs.sfx || !ctx || ctx.state !== 'running') return;
+    if (name === 'ching') { const n = performance.now(); if (n - lastChing < 110) return; lastChing = n; }
+    try { SFX[name](ctx.currentTime + 0.005); } catch (e) { /* abaikan */ }
+  }
+  return { prefs, unlock, sfx,
+    setIntensity(v) { intensity = v; },
+    set(k, v) { prefs[k] = v; save(); if (!ctx) return; const t = ctx.currentTime;
+      if (k === 'music') musicBus.gain.setTargetAtTime(v ? 0.5 : 0, t, 0.08);
+      if (k === 'vol') master.gain.setTargetAtTime(v, t, 0.05); } };
+})();
+
 </script>
 <script>
 /* Kedai Rintisan: antarmuka. */
@@ -1083,7 +1646,10 @@ if (typeof module !== 'undefined') module.exports = Engine;
   const E = Engine, JT = E.JT;
   const $ = q => document.querySelector(q);
   const KEY = 'kedai-rintisan-v1';
-  let S = null, tab = 'ringkasan', dialog = null, toastT = 0;
+  let S = null, tab = 'ringkasan', dialog = null, toastT = 0, fx = null, busy = false, justRan = false, prevCash = null, lastDlg = null;
+  const P = Sound.prefs, G = window.gsap || null;
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ambient = Scene.create();
   const cloud = { db: null, uid: null, busy: false, dirty: false, status: 'Tersimpan di peramban ini' };
   const draft = { loanType: 'kur', loanAmt: 10, loanMonths: 24, buy: {}, io: '' };
 
@@ -1247,7 +1813,9 @@ if (typeof module !== 'undefined') module.exports = Engine;
       return `<tr><td>${esc(E.LOCS[o.loc].n)}</td><td class="n">${x.vis}</td><td class="n">${x.served}</td><td class="n ${x.lost > x.served * 0.1 ? 'bad' : ''}">${x.lost}</td>
         <td class="n">${rp(x.rev)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="bar ${u > 1 ? 'bad' : u > 0.85 ? 'warn' : 'good'}" style="flex:1"><i style="width:${Math.min(100, u * 100)}%"></i></div><span class="num small">${pct(x.util)}</span></div></td></tr>`;
     }).join('');
-    return `<div class="wrap"><div class="cols"><div class="wrap">
+    return `<div class="wrap"><figure class="street"><canvas id="street" aria-label="Gambar suasana outlet Anda hari ini: toko, cuaca, dan pelanggan yang lalu-lalang"></canvas>
+        <figcaption>${esc(E.WX[S.wx])} · ${S.outlets.length} outlet${S.last ? ' · kemarin ' + S.last.served + ' pelanggan terlayani' : ''}</figcaption></figure>
+      <div class="cols"><div class="wrap">
       ${alerts()}
       <section class="card"><header><h3>Outlet kemarin</h3><span class="small muted">Kapasitas terpakai di atas 100% berarti pelanggan pergi</span></header>
         <div class="tablewrap"><table><thead><tr><th>Outlet</th><th class="n">Pengunjung</th><th class="n">Terlayani</th><th class="n">Pergi</th><th class="n">Omzet</th><th>Kapasitas terpakai</th></tr></thead><tbody>${outs}</tbody></table></div></section>
@@ -1319,7 +1887,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
     const cards = S.outlets.map(o => {
       const L = E.LOCS[o.loc], cap = Math.round(E.capacity(S, o)), q = Math.round(E.quality(S, o)), x = o.last, min = o.own ? 0 : 1;
       const eq = o.equip < 3 ? E.EQUIP[o.equip + 1] : null, dk = o.dekor < 2 ? E.DEKOR[o.dekor + 1] : null;
-      return `<section class="card"><header><h3>${esc(L.n)}</h3><span class="row" style="gap:6px">${o.own ? '<span class="chip">Anda jaga sendiri</span>' : '<span class="chip">Kepala toko</span>'}${o.closed > 0 ? '<span class="chip bad">Tutup ' + o.closed + ' hari</span>' : ''}${o.broken > 0 ? '<span class="chip warn">Mesin rusak</span>' : ''}</span></header>
+      return `<section class="card"><canvas class="shoppic" data-shop="${o.id}" aria-hidden="true"></canvas><header><h3>${esc(L.n)}</h3><span class="row" style="gap:6px">${o.own ? '<span class="chip">Anda jaga sendiri</span>' : '<span class="chip">Kepala toko</span>'}${o.closed > 0 ? '<span class="chip bad">Tutup ' + o.closed + ' hari</span>' : ''}${o.broken > 0 ? '<span class="chip warn">Mesin rusak</span>' : ''}</span></header>
         <dl class="kv">
           <dt>Dikenal warga sekitar</dt><dd>${pct(o.known)}</dd>
           <dt>Kualitas di mata pelanggan</dt><dd class="${tone(q, 45, 65)}">${q}</dd>
@@ -1341,7 +1909,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
     }).join('');
     const news = Object.keys(E.LOCS).filter(l => !S.outlets.some(o => o.loc === l)).map(l => {
       const L = E.LOCS[l], cost = E.setupCost(S, l), est = locEstimate(l), deal = S.flags.deal === l;
-      return `<section class="card"><header><h3>${esc(L.n)}</h3>${deal ? '<span class="chip good">Diskon 30%</span>' : ''}</header>
+      return `<section class="card"><canvas class="shoppic soon" data-loc="${l}" aria-hidden="true"></canvas><header><h3>${esc(L.n)}</h3>${deal ? '<span class="chip good">Diskon 30%</span>' : ''}</header>
         <p class="small muted">${esc(L.d)}</p>
         <dl class="kv"><dt>Biaya buka</dt><dd>${rp(cost)}</dd><dt>Sewa per bulan</dt><dd>${rp(L.rent * S.infl)}</dd>
           <dt>Orang lewat per hari</dt><dd>±${L.traffic}</dd>
@@ -1434,7 +2002,7 @@ if (typeof module !== 'undefined') module.exports = Engine;
       <section class="card"><header><h3>Simpanan</h3></header>
         <p class="small" id="savestat">${esc(cloud.status)}</p>
         <p class="small muted">Permainan disimpan otomatis tiap hari berjalan. Untuk cadangan atau pindah perangkat, salin teks simpanan di bawah, lalu tempel di perangkat lain.</p>
-        <textarea id="io" rows="4" data-chg="io" aria-label="Teks simpanan" placeholder="Tempel teks simpanan di sini untuk memuat"></textarea>
+        <textarea id="io" rows="4" data-lenis-prevent data-chg="io" aria-label="Teks simpanan" placeholder="Tempel teks simpanan di sini untuk memuat"></textarea>
         <div class="row"><button data-act="export">Salin simpanan</button><button data-act="import">Muat dari teks</button><button class="ghost" data-act="asknew">Mulai usaha baru</button></div></section>
     </div><section class="card"><header><h3>Buku catatan</h3></header>${logList(80)}</section></div>`;
   }
@@ -1461,30 +2029,61 @@ if (typeof module !== 'undefined') module.exports = Engine;
   }
 
   /* ---------- Render ---------- */
-  function render() {
+  function shell() {
     const app = $('#app');
-    if (!S) { app.style.display = 'block'; app.innerHTML = vStart(); renderDialog(); return; }
-    app.style.display = '';
-    const c = E.cal(S.day), tags = E.seasonTags(S.day), canSkip = S.auto.on && S.research.r_supplier;
+    if (app.dataset.ready) return;
+    app.dataset.ready = '1';
+    app.innerHTML = '<header class="top" id="top"></header><nav class="side" id="side" aria-label="Halaman"></nav><main id="view"><div id="page"></div></main>';
+    if (window.MotionKit) fx = MotionKit.init({ scroller: $('#view'), headings: '#page h1, #page h2', cards: '#page .card, #page .street, #page .alert', hover: '#page .grid > .card' });
+  }
+  function settingsHtml() {
+    const tg = (k, label) => `<button class="mini tog" data-act="pref" data-k="${k}" aria-pressed="${P[k] ? 'true' : 'false'}">${label}: ${P[k] ? 'nyala' : 'mati'}</button>`;
+    return `<div class="prefs">${tg('music', 'Musik')}${tg('sfx', 'Efek suara')}
+      <label for="vol" class="small">Volume</label><input type="range" id="vol" min="0" max="1" step="0.05" value="${P.vol}" data-chg="vol" data-inp="vol">
+      <label for="anim" class="small">Animasi hari</label><select id="anim" data-chg="anim">${['penuh', 'cepat', 'mati'].map(a => `<option ${P.anim === a ? 'selected' : ''}>${a}</option>`).join('')}</select></div>`;
+  }
+  function sceneData() {
+    return { brand: S.brand, wx: S.wx, ojol: S.ojol, outlets: S.outlets.map(o => ({ loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0, served: o.last ? o.last.served : 20 })) };
+  }
+  function paint() {
+    const st = $('#street');
+    if (st) { ambient.attach(st); ambient.setData(sceneData(), 'ambient'); ambient.time = 0.36; if (reduce) ambient.still(); else ambient.start(); } else ambient.stop();
+    document.querySelectorAll('canvas.shoppic').forEach(cv => {
+      const o = cv.dataset.shop ? S.outlets.find(x => x.id === +cv.dataset.shop) : { loc: cv.dataset.loc, equip: E.LOCS[cv.dataset.loc].equip, dekor: 0, staff: 1, own: false, closed: 0 };
+      if (o) Scene.thumb(cv, { loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own, closed: o.closed > 0 }, S.brand, S.wx);
+    });
+  }
+  function render() {
+    shell();
+    const app = $('#app'), page = $('#page');
+    if (!S) { app.classList.add('intro'); ambient.stop(); page.innerHTML = vStart(); if (fx) fx.refresh('start'); renderDialog(); return; }
+    app.classList.remove('intro');
+    const tags = E.seasonTags(S.day), canSkip = S.auto.on && S.research.r_supplier;
     const lastM = S.months[S.months.length - 1];
-    const focus = document.activeElement && document.activeElement.id, main = $('main'), sc = main ? main.scrollTop : 0;
-    app.innerHTML = `<header class="top">
+    const focus = document.activeElement && document.activeElement.id;
+    $('#top').innerHTML = `
       <div class="brand">${esc(S.brand)}<small>${esc(E.dateStr(S.day))} · hari ke-${S.day}</small></div>
       <div class="kpis">
-        <div class="kpi"><b class="${S.cash < 0 ? 'bad' : ''}">${rp(S.cash)}</b><span>Kas</span></div>
+        <div class="kpi"><b class="${S.cash < 0 ? 'bad' : ''}" id="kpi-cash">${rp(S.cash)}</b><span>Kas</span></div>
         <div class="kpi"><b class="${tone(S.rep, 40, 65)}">${Math.round(S.rep)}<span class="small muted" style="font-size:12px"> /100</span></b><span>Reputasi</span></div>
         <div class="kpi"><b>${lastM ? jt(E.monthProfit(lastM)) : '–'}</b><span>Laba bulan lalu</span></div>
         <div class="kpi"><b>${esc(E.WX[S.wx])}</b><span>Cuaca hari ini · besok ${esc(E.WX[S.wxFc].toLowerCase())}</span></div>
         ${tags.map(t => `<span class="chip" style="align-self:center">${esc(t)}</span>`).join('')}
       </div>
       <div class="go"><button data-act="skip" ${canSkip ? '' : 'disabled'} title="${canSkip ? 'Berhenti otomatis bila ada kejadian' : 'Butuh pemasok langganan aktif'}">Lompat 7 hari</button>
-        <button class="primary" data-act="next" id="next">Jalankan hari ▸</button></div>
-    </header>
-    <nav class="side" aria-label="Halaman">${TABS.map(([id, n]) => `<button data-act="tab" data-id="${id}" ${tab === id ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
-      <div class="foot">Mode ${esc(S.mode)}<br>${S.outlets.length} outlet · ${S.franchise.length} mitra<br>Tombol spasi: jalankan hari</div></nav>
-    <main id="view">${VIEWS[tab]()}</main>`;
-    $('main').scrollTop = sc;
+        <button class="primary" data-act="next" id="next">Jalankan hari ▸</button></div>`;
+    $('#side').innerHTML = `${TABS.map(([id, n]) => `<button data-act="tab" data-id="${id}" ${tab === id ? 'aria-current="page"' : ''}>${n}</button>`).join('')}
+      <div class="foot">${settingsHtml()}<p>Mode ${esc(S.mode)} · ${S.outlets.length} outlet · ${S.franchise.length} mitra<br>Tombol spasi: jalankan hari</p></div>`;
+    page.innerHTML = VIEWS[tab]();
     if (focus) { const el = document.getElementById(focus); if (el) el.focus(); }
+    paint();
+    if (fx) fx.refresh(tab);
+    /* angka kas bergulir */
+    const kc = $('#kpi-cash');
+    if (G && !reduce && kc && prevCash != null && prevCash !== S.cash) { const o = { v: prevCash }; kc.textContent = rp(o.v); G.to(o, { v: S.cash, duration: 0.7, ease: 'power2.out', onUpdate: () => { if (kc.isConnected) kc.textContent = rp(o.v); } }); }
+    prevCash = S.cash;
+    /* struk tercetak */
+    if (justRan) { justRan = false; const sk = $('.struk'); if (sk && tab === 'ringkasan') { Sound.sfx('print'); if (G && !reduce) G.from(sk, { clipPath: 'inset(0 0 100% 0)', y: -14, duration: 0.95, ease: 'power2.out', clearProps: 'clipPath,transform' }); } }
     renderDialog();
   }
   function renderDialog() {
@@ -1495,9 +2094,10 @@ if (typeof module !== 'undefined') module.exports = Engine;
         choices: ev.choices.map((c, i) => ({ label: c.label, hint: c.hint || '', dis: c.can && !c.can(S), act: 'choice', i })) };
       else S.pending = null;
     }
-    if (!dialog) { m.classList.remove('on'); m.innerHTML = ''; return; }
+    if (!dialog) { m.classList.remove('on'); m.innerHTML = ''; lastDlg = null; return; }
+    if (dialog !== lastDlg) { lastDlg = dialog; Sound.sfx(dialog.sfx || 'event'); }
     m.classList.add('on');
-    m.innerHTML = `<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t">
+    m.innerHTML = `<div class="dialog" data-lenis-prevent role="dialog" aria-modal="true" aria-labelledby="dlg-t">
       <span class="eyebrow">${esc(dialog.eyebrow || '')}</span><h2 id="dlg-t">${esc(dialog.title)}</h2><p>${esc(dialog.text)}</p>
       <div class="choices">${dialog.choices.map(c => `<button data-act="${c.act}" data-i="${c.i != null ? c.i : ''}" ${c.dis ? 'disabled' : ''} ${c.primary ? 'class="primary"' : ''}><b>${esc(c.label)}</b><span>${esc(c.hint || '')}</span></button>`).join('')}</div></div>`;
     const b = m.querySelector('button:not(:disabled)'); if (b) b.focus();
@@ -1508,28 +2108,88 @@ if (typeof module !== 'undefined') module.exports = Engine;
 
   /* ---------- Aksi ---------- */
   function done(r) { if (r && r.msg) toast(r.msg); save(); render(); }
-  function afterDay() {
-    if (S.over) { dialog = { eyebrow: 'Hari ke-' + S.day, title: 'Usaha bangkrut', text: 'Kas minus terlalu lama dan para penagih menutup warung. ' + S.brand + ' bertahan ' + (S.day - 1) + ' hari dengan ' + S.outlets.length + ' outlet. Tiap pengusaha punya cerita gagal pertama.',
+  function afterDay(goalsBefore) {
+    if (S.over) { dialog = { sfx: 'lose', eyebrow: 'Hari ke-' + S.day, title: 'Usaha bangkrut', text: 'Kas minus terlalu lama dan para penagih menutup warung. ' + S.brand + ' bertahan ' + (S.day - 1) + ' hari dengan ' + S.outlets.length + ' outlet. Tiap pengusaha punya cerita gagal pertama.',
       choices: [{ label: 'Mulai usaha baru', act: 'newgame', primary: true }, { label: 'Lihat pembukuan terakhir', act: 'close' }] }; }
-    else if (S.flags.justWon) { delete S.flags.justWon; info('Pencapaian puncak', 'Valuasi Rp 5 miliar', S.brand + ' kini bernilai lebih dari Rp 5 miliar, dibangun dari satu warung di mulut gang dalam ' + (S.day - 1) + ' hari. Anda boleh terus bermain selama yang Anda mau.'); }
+    else if (S.flags.justWon) { delete S.flags.justWon; info('Pencapaian puncak', 'Valuasi Rp 5 miliar', S.brand + ' kini bernilai lebih dari Rp 5 miliar, dibangun dari satu warung di mulut gang dalam ' + (S.day - 1) + ' hari. Anda boleh terus bermain selama yang Anda mau.'); dialog.sfx = 'win'; }
+    else if (Object.keys(S.goals).length > goalsBefore) Sound.sfx('win');
   }
-  function nextDay(n) {
-    if (!S || S.over || S.pending || dialog) return;
-    let r = null, i = 0;
-    for (; i < n; i++) { r = E.runDay(S); if (!r || S.pending || S.over || S.cash < 0 || S.flags.justWon) { i++; break; } }
-    afterDay();
-    if (r && !dialog) toast(n > 1 ? i + ' hari berlalu. Kas ' + rp(S.cash) + '.' : 'Hari ke-' + r.day + ' selesai. Laba ' + rp(r.profit) + '.');
-    draft.buy = {};
+  /* Panggung: hari berjalan sebagai animasi. days = [{r, snap}] */
+  let stageSkip = null;
+  function playStage(days, daySec) {
+    return new Promise(resolve => {
+      const el = $('#stage'), many = days.length > 1;
+      el.innerHTML = `<div class="stagebox"><canvas id="stagecv"></canvas>
+        <div class="hud"><div class="clock num" id="st-clock">07.00</div><div class="hud-day" id="st-day"></div>
+          <div class="hud-n"><b class="num" id="st-served">0</b><span>terlayani</span></div><div class="hud-n"><b class="num bad" id="st-lost">0</b><span>pergi</span></div>
+          <div class="hud-n wide"><b class="num" id="st-rev">Rp 0</b><span>omzet</span></div>
+          <div class="hud-n wide" id="st-profit-box" style="visibility:hidden"><b class="num" id="st-profit"></b><span>laba hari ini</span></div>
+          <button data-act="skipanim" id="st-skip">Lewati ▸▸</button></div>
+        <div class="prog"><i id="st-prog"></i></div></div>`;
+      el.classList.add('on');
+      const sc = Scene.create(); sc.attach($('#stagecv')); sc.onSale = () => Sound.sfx('ching');
+      Sound.setIntensity(1);
+      let di = -1, t0 = 0, holdUntil = 0, raf = 0, done = false, last = 0;
+      const ease = x => x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+      const finish = () => { if (done) return; done = true; cancelAnimationFrame(raf); stageSkip = null; Sound.setIntensity(0); el.classList.remove('on'); el.innerHTML = ''; resolve(); };
+      stageSkip = finish;
+      function startDay(ts) {
+        di++; if (di >= days.length) return finish();
+        const d = days[di], r = d.r;
+        sc.setData({ brand: S.brand, wx: r.wx, ojol: S.ojol, outlets: d.snap.map(o => { const x = r.out.find(q => q.id === o.id) || {}; return Object.assign({}, o, { closed: !!x.closed, served: x.served || 0, lost: x.lost || 0, vis: x.vis || 0 }); }) }, 'day', daySec);
+        $('#st-day').textContent = 'Hari ke-' + r.day + ' · ' + E.WX[r.wx] + (r.tags.length ? ' · ' + r.tags.join(', ') : '');
+        $('#st-profit-box').style.visibility = 'hidden';
+        t0 = ts; holdUntil = 0; Sound.sfx('bell');
+      }
+      function frame(ts) {
+        if (done) return;
+        raf = requestAnimationFrame(frame);
+        if (di < 0) startDay(ts);
+        if (done) return;
+        const r = days[di].r, dt = Math.min(0.05, (ts - (last || ts)) / 1000); last = ts;
+        const t = Math.min(1, (ts - t0) / (daySec * 1000)), k = ease(Math.min(1, t / 0.9));
+        sc.time = t; sc.step(dt); sc.draw();
+        const mins = Math.round((7 + t * 14) * 60 / 10) * 10;
+        $('#st-clock').textContent = String(Math.floor(mins / 60)).padStart(2, '0') + '.' + String(mins % 60).padStart(2, '0');
+        $('#st-served').textContent = Math.round(r.served * k); $('#st-lost').textContent = Math.round(r.lost * k); $('#st-rev').textContent = rp(r.rev * k);
+        $('#st-prog').style.width = ((di + t) / days.length * 100) + '%';
+        if (t >= 1) {
+          if (!holdUntil) { holdUntil = ts + (many ? 260 : 1150); const pb = $('#st-profit-box'), pe = $('#st-profit'); pe.textContent = rp(r.profit); pe.className = 'num ' + (r.profit >= 0 ? 'good' : 'bad'); pb.style.visibility = 'visible';
+            if (G && !reduce) G.fromTo(pb, { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: 'back.out(2)' }); if (!many) Sound.sfx(r.profit >= 0 ? 'good' : 'bad'); }
+          else if (ts >= holdUntil) startDay(ts);
+        }
+      }
+      raf = requestAnimationFrame(frame);
+    });
+  }
+  async function nextDay(n) {
+    if (!S || S.over || S.pending || dialog || busy) return;
+    busy = true;
+    const days = [], goalsBefore = Object.keys(S.goals).length;
+    for (let i = 0; i < n; i++) {
+      const snap = S.outlets.map(o => ({ id: o.id, loc: o.loc, equip: o.equip, dekor: o.dekor, staff: o.staff, own: o.own }));
+      const r = E.runDay(S); if (!r) break;
+      days.push({ r, snap });
+      if (S.pending || S.over || S.cash < 0 || S.flags.justWon) break;
+    }
+    save();
+    const r = days.length ? days[days.length - 1].r : null;
+    if (days.length && P.anim !== 'mati' && !reduce) await playStage(days, days.length > 1 ? 1.25 : P.anim === 'cepat' ? 2.4 : 5.5);
+    afterDay(goalsBefore);
+    if (r && !dialog) toast(days.length > 1 ? days.length + ' hari berlalu. Kas ' + rp(S.cash) + '.' : 'Hari ke-' + r.day + ' selesai. Laba ' + rp(r.profit) + '.');
+    draft.buy = {}; justRan = true; busy = false;
     save(); render();
   }
   const ACT = {
-    tab: d => { tab = d.id; render(); $('main').scrollTop = 0; },
+    tab: d => { tab = d.id; render(); if (fx) fx.top(); else $('#view').scrollTop = 0; },
+    skipanim: () => { if (stageSkip) stageSkip(); },
+    pref: d => { Sound.set(d.k, !P[d.k]); render(); },
     next: () => nextDay(1),
     skip: () => nextDay(7),
     price: d => { E.setPrice(S, d.k, S.prices[d.k] + +d.d); done(); },
     fill: d => { draft.buy[d.k] = coverQty(d.k, +d.d); render(); },
-    buy: d => { const q = draft.buy[d.k] != null ? draft.buy[d.k] : coverQty(d.k, 3); const r = E.buy(S, d.k, q); if (r.ok) delete draft.buy[d.k]; done(r); },
-    buyall: () => { let n = 0; for (const k in E.ING) { const q = coverQty(k, 3); if (q > 0 && E.buy(S, k, q).ok) n++; } draft.buy = {}; done({ msg: n ? 'Belanja selesai, ' + n + ' jenis bahan dibeli.' : 'Stok masih cukup.' }); },
+    buy: d => { const q = draft.buy[d.k] != null ? draft.buy[d.k] : coverQty(d.k, 3); const r = E.buy(S, d.k, q); if (r.ok) { delete draft.buy[d.k]; Sound.sfx('pop'); } done(r); },
+    buyall: () => { let n = 0; for (const k in E.ING) { const q = coverQty(k, 3); if (q > 0 && E.buy(S, k, q).ok) n++; } draft.buy = {}; if (n) Sound.sfx('pop'); done({ msg: n ? 'Belanja selesai, ' + n + ' jenis bahan dibeli.' : 'Stok masih cukup.' }); },
     hire: d => done(E.hire(S, +d.id)), fire: d => done(E.fire(S, +d.id)),
     equip: d => done(E.upgradeEquip(S, +d.id)), dekor: d => done(E.upgradeDekor(S, +d.id)),
     open: d => { const L = E.LOCS[d.loc]; dialog = { eyebrow: 'Ekspansi', title: 'Buka outlet di ' + L.n + '?', text: 'Biaya buka ' + rp(E.setupCost(S, d.loc)) + '. Outlet baru langsung menambah gaji kepala toko dan satu barista, sementara pelanggan baru berdatangan pelan-pelan.',
@@ -1565,10 +2225,15 @@ if (typeof module !== 'undefined') module.exports = Engine;
     loanamt: el => { draft.loanAmt = Math.max(1, Math.floor(+el.value || 1)); render(); },
     loanmo: el => { draft.loanMonths = +el.value; render(); },
     io: el => { draft.io = el.value; },
+    vol: el => { Sound.set('vol', +el.value); },
+    anim: el => { Sound.set('anim', el.value); },
   };
   document.addEventListener('click', e => {
+    Sound.unlock();
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
+    if (busy && b.dataset.act !== 'skipanim') return;
+    if (!/^(next|skip|buy|buyall|skipanim)$/.test(b.dataset.act)) Sound.sfx('tick');
     const f = ACT[b.dataset.act]; if (f) f(b.dataset);
   });
   document.addEventListener('change', e => {
@@ -1576,14 +2241,16 @@ if (typeof module !== 'undefined') module.exports = Engine;
     if (!el) return;
     const f = CHG[el.dataset.chg]; if (f) f(el, el.dataset);
   });
+  document.addEventListener('input', e => { if (e.target.dataset && e.target.dataset.inp === 'vol') Sound.set('vol', +e.target.value); });
   document.addEventListener('submit', e => {
-    e.preventDefault();
+    e.preventDefault(); Sound.unlock();
     if (e.target.id !== 'newgame') return;
     S = E.newGame({ brand: $('#brand').value.trim() || 'Kedai Rintisan', mode: $('#mode-s').checked ? 'santai' : 'realistis' });
-    tab = 'ringkasan'; save(); render();
+    tab = 'ringkasan'; prevCash = null; save(); render(); Sound.sfx('bell');
   });
   document.addEventListener('keydown', e => {
-    if (e.code !== 'Space' || !S || dialog) return;
+    if (e.code === 'Space' && stageSkip) { e.preventDefault(); stageSkip(); return; }
+    if (e.code !== 'Space' || !S || dialog || busy) return;
     const t = e.target.tagName;
     if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || t === 'BUTTON') return;
     e.preventDefault(); nextDay(1);

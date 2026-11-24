@@ -14,12 +14,13 @@ Game simulasi bisnis berbasis giliran harian: pemain menumbuhkan satu warung kop
 - "Harga wajar" = harga acuan menu × faktor lokasi × inflasi × (1 + (kualitas − 40)/200).
 
 ## Stack dan cara menjalankan
-- Stack: HTML + CSS + JavaScript murni, tanpa dependensi. Hasil akhir satu berkas `index.html`.
-- Sumber: `src/engine.js` (aturan, tanpa DOM), `src/ui.js` (antarmuka), `src/style.css`, `src/template.html`.
+- Stack: HTML + CSS + JavaScript murni. Hasil akhir satu berkas `index.html`. Library gerak dimuat dari CDN dan semuanya opsional (game tetap jalan tanpa internet): GSAP 3.12.5 + ScrollTrigger, Motion 12.23.24, Lenis 1.1.20.
+- Sumber: `src/engine.js` (aturan, tanpa DOM), `src/ui.js` (antarmuka), `src/scene.js` (adegan kanvas: toko, kerumunan, cuaca), `src/audio.js` (musik dan efek suara disintesis dengan Web Audio, tanpa berkas audio), `src/motion-kit.js` (salinan dari skill web-motion-kit, jangan diubah), `src/style.css`, `src/template.html`.
+- Pembagian peran gerak: GSAP untuk judul per kata, angka kas, dan struk; Motion untuk kartu masuk dan hover; Lenis untuk scroll halus pada `#view`. Jangan menganimasikan satu elemen dengan dua library.
 - Rakit: `node build.js` (menghasilkan `index.html`; jangan sunting `index.html` langsung)
 - Jalankan: buka `index.html` di browser
 - Uji keseimbangan: `node test/sim.js` (bot memainkan 4 tahun; lihat kapan tiap pencapaian tercapai)
-- Uji browser: `node test/smoke.js <folder-screenshot>` (butuh Playwright)
+- Uji browser: `node test/smoke.js <folder-screenshot> <folder node_modules berisi gsap, motion, lenis>` (butuh Playwright; CDN dialihkan ke salinan lokal)
 - Deploy: BELUM DIPUTUSKAN (saat ini diterbitkan sebagai artifact Claude)
 
 ## Data
